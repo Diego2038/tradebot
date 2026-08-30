@@ -8,7 +8,7 @@ Testing is kept minimal and folded into the implementation task that produces th
 
 ## Tasks
 
-- [ ] 1. Ensure the spec-04 risk port types (create the minimal module only if absent)
+- [x] 1. Ensure the spec-04 risk port types (create the minimal module only if absent)
   - Dependency note: spec `06` imports `ProposedOrder`, `RiskDecision`, and `RiskPort` from `app.services.execution.risk`, which are **owned by spec `04-order-execution`**. Spec `04` is not implemented on disk yet, so this task unblocks spec `06` (implementable and importable, tests runnable) without waiting for spec `04`.
   - If `backend/app/services/execution/risk.py` does not exist: create `backend/app/services/execution/__init__.py` and `backend/app/services/execution/risk.py` with EXACTLY the port types the spec `04` design defines: `ProposedOrder(symbol: str, side: str, qty: Decimal)` (frozen dataclass), `RiskDecision(approved: bool, reason: str)` (frozen dataclass), and `RiskPort` as a `@runtime_checkable` `Protocol` with `evaluate(proposed_order: ProposedOrder) -> RiskDecision`.
   - If the module already exists (spec `04` implemented it): reuse it as-is; do not duplicate or redefine the types. The path and type names must be identical so spec `04`, when implemented, reuses the SAME module without conflict.
