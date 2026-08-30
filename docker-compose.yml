@@ -1,0 +1,44 @@
+# TradeBot - orquestación completa.
+# `docker compose up --build` levanta db + backend + frontend sin instalar nada local.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tradebot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tradebot}
+      POSTGRES_DB: ${POSTGRES_DB:-tradebot}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tradebot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-tradebot}:${POSTGRES_PASSWORD:-tradebot}@db:5432/${POSTGRES_DB:-tradebot}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY}
+      ALPACA_PAPER_ONLY: ${ALPACA_PAPER_ONLY:-true}
+      DEFAULT_SYMBOL: ${DEFAULT_SYMBOL:-BTC/USD}
+      DEBUG: ${DEBUG:-false}
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        API_BASE_URL: ${API_BASE_URL:-http://localhost:8000}
+        WS_BASE_URL: ${WS_BASE_URL:-ws://localhost:8000/ws/bot}
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  db_data:
