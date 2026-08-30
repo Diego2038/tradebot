@@ -1,8 +1,9 @@
 # Requisitos — 08 Web Frontend
 
 ## Introducción
-Aplicación Flutter (web) que permite configurar las credenciales de Alpaca, elegir el modo
-del bot y observar en **tiempo real** sus acciones. Consume la API del spec 07.
+Aplicación React + TypeScript (Vite) que permite configurar las credenciales de Alpaca,
+elegir el modo del bot y observar en **tiempo real** sus acciones. Consume la API del
+spec 07.
 
 > Borrador inicial (sesión Vibe). Se refinará en una sesión **Spec** dedicada.
 
@@ -40,6 +41,6 @@ Criterios de aceptación:
    (sin dinero real).
 
 ## Pruebas necesarias (mínimas)
-- Widget test: el formulario de credenciales no revela el Secret ingresado.
-- Widget test: al recibir un evento simulado por el stream, el dashboard lo renderiza.
+- Test de componente: el formulario de credenciales no revela el Secret ingresado.
+- Test de componente: al recibir un evento simulado por el stream, el dashboard lo renderiza.
 - El indicador de "paper trading" está siempre visible.

@@ -8,49 +8,49 @@ Testing is kept minimal and, where possible, folded into the implementation task
 
 ## Tasks
 
-- [ ] 1. Persistence foundation: base, model, and startup table creation
+- [x] 1. Persistence foundation: base, model, and startup table creation
   - Create `app/db/base.py` with a shared `Base(DeclarativeBase)`.
   - Create `app/db/models/alpaca_credential.py` with the `AlpacaCredential` model (encrypted key/secret, `key_id_last4`, `validation_status`, timestamps); tokens only, never plaintext.
   - Call `Base.metadata.create_all(bind=engine)` at startup in `app/main.py`.
   - _Requirements: 1.2, 1.5_
 
-- [ ] 2. Pydantic schemas in `app/schemas/alpaca.py`
+- [x] 2. Pydantic schemas in `app/schemas/alpaca.py`
   - `CredentialSubmit` (api_key/secret, `min_length=1` + whitespace-only validator that rejects blank fields).
   - `CredentialMetadata` (exists, key_id_last4, validation_status, updated_at) with no secret field anywhere.
   - `DeletionResult` (deleted, detail) and `AccountStatus` (cash, buying_power, status, `mode` fixed to `paper`).
   - _Requirements: 1.3, 1.7, 3.1, 6.1, 5.3_
 
-- [ ] 3. Domain errors, paper-only barrier, and startup enforcement
+- [x] 3. Domain errors, paper-only barrier, and startup enforcement
   - Create `app/services/alpaca_client/errors.py` with the error hierarchy (`AlpacaClientError`, `CredentialsRequiredError`, `InvalidCredentialsError`, `TransientAlpacaError`, `AccountQueryError`, `PaperOnlyViolationError`).
   - Create `app/services/alpaca_client/barrier.py` with `assert_paper_only(settings)` raising `PaperOnlyViolationError` on a non-paper base URL while paper-only is on.
   - Add the startup hook in `app/main.py` that calls `assert_paper_only(get_settings())` so misconfiguration refuses to start.
   - Unit test: paper URL passes, non-paper URL raises `PaperOnlyViolationError` (Property 8).
   - _Requirements: 5.1, 5.2_
 
-- [ ] 4. `CredentialRepository` in `app/services/alpaca_client/repository.py`
+- [x] 4. `CredentialRepository` in `app/services/alpaca_client/repository.py`
   - Implement `get_active`, `replace_active` (delete-then-insert in one transaction so exactly one active set remains), and `delete_active` (returns True when a row was removed).
   - Repository stores/returns already-encrypted values; it never encrypts or decrypts.
   - _Requirements: 1.5, 6.3, 6.4_
 
-- [ ] 5. `AlpacaClientFactory` in `app/services/alpaca_client/factory.py`
+- [x] 5. `AlpacaClientFactory` in `app/services/alpaca_client/factory.py`
   - `build_trading_client`: enforce the barrier, decrypt stored credentials into locals, build `TradingClient(..., paper=True)`, discard the secret on return (never assigned to `self`); raise `CredentialsRequiredError` when no credentials exist.
   - `validate(api_key, secret)`: build an ephemeral paper client with a 10s timeout and probe `get_account()`; map 401/403 to `InvalidCredentialsError`, timeout/network to `TransientAlpacaError`, other API errors to `AccountQueryError`.
   - Unit test with a mocked SDK: client built with `paper=True`; 401/403 vs timeout map to distinct errors; secret not retained on the factory instance (Properties 7, 4, 5, 12).
   - _Requirements: 2.1, 2.2, 2.3, 4.1, 4.2, 4.3, 5.1_
 
-- [ ] 6. `CredentialService` in `app/services/alpaca_client/credential_service.py`
+- [x] 6. `CredentialService` in `app/services/alpaca_client/credential_service.py`
   - `store`: reject blank/whitespace fields, encrypt via `security.encrypt_secret` (surface `EncryptionError`), validate through `factory.validate` before any write, then `replace_active` with `key_id_last4` and `validation_status="valid"`; on any failure leave the store unchanged.
   - `inspect`: return metadata only (exists, key_id_last4, validation_status), never decrypting the secret.
   - `delete`: remove the active set if present and report the outcome.
   - _Requirements: 1.1, 1.5, 1.6, 1.7, 2.1, 2.2, 2.3, 2.4, 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 7. `AccountService` in `app/services/alpaca_client/account_service.py`
+- [x] 7. `AccountService` in `app/services/alpaca_client/account_service.py`
   - `get_account`: if no active credentials, raise `CredentialsRequiredError` without building a client or calling Alpaca; otherwise build via the factory and map `cash`, `buying_power`, `status` into `AccountStatus` with `mode="paper"`.
   - Classify Alpaca errors/timeouts as `AccountQueryError`/`TransientAlpacaError` so the backend stays up and the store is untouched.
   - Unit test: empty store raises `CredentialsRequiredError` and the factory/client is never called (mock spy) (R3.2).
   - _Requirements: 3.1, 3.2, 3.3, 5.3_
 
-- [ ] 8. REST router and exception handlers wired into `main.py`
+- [x] 8. REST router and exception handlers wired into `main.py`
   - Create `app/api/credentials.py` with `POST/GET/DELETE /credentials` and `GET /account`, wiring repository/services per request via `Depends(get_db)`.
   - Register FastAPI exception handlers mapping each `AlpacaClientError` subclass to its distinct HTTP status and stable `error_code` (401 invalid vs 502 transient are distinguishable; 409 no-credentials; 503 encryption); ensure no plaintext secret appears in any response.
   - Include both routers in `app/main.py`.

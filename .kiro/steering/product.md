@@ -3,7 +3,7 @@
 ## Qué es
 TradeBot es una aplicación web que ejecuta un bot de trading automatizado sobre la
 plataforma **Alpaca**, consumiendo su API oficial. El usuario controla el bot desde un
-frontend web (Flutter) y observa **en tiempo real** las acciones que el bot va tomando.
+frontend web (React + TypeScript) y observa **en tiempo real** las acciones que el bot va tomando.
 
 ## Alcance actual
 - **Solo paper trading (dinero ficticio).** La aplicación apunta exclusivamente al

@@ -1,0 +1,153 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Persistence foundation: base, model, and startup table creation": [
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060917745
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060933477
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788061157145
+      }
+    ],
+    "2. Pydantic schemas in `app/schemas/alpaca.py`": [
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060918731
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060934860
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788061158135
+      }
+    ],
+    "3. Domain errors, paper-only barrier, and startup enforcement": [
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060918940
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060935393
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788061159352
+      }
+    ],
+    "4. `CredentialRepository` in `app/services/alpaca_client/repository.py`": [
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060919212
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788061168846
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788061330725
+      }
+    ],
+    "5. `AlpacaClientFactory` in `app/services/alpaca_client/factory.py`": [
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060919464
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788061337981
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788061624922
+      }
+    ],
+    "6. `CredentialService` in `app/services/alpaca_client/credential_service.py`": [
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060919726
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788061634130
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788062402833
+      }
+    ],
+    "7. `AccountService` in `app/services/alpaca_client/account_service.py`": [
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060920145
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788061634695
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788062404012
+      }
+    ],
+    "8. REST router and exception handlers wired into `main.py`": [
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060920860
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788062409877
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788062971990
+      }
+    ],
+    "9.1 Add Hypothesis property tests for the critical properties (min. 100 iterations each), Alpaca SDK mocked:": [
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788060921300
+      },
+      {
+        "executionId": "978d1fd0-256a-43c2-9064-08602648ab80",
+        "chatSessionId": "sess_c193c832-7cfe-4d1b-bb6e-b3f228cb0538",
+        "timestamp": 1788062979771
+      }
+    ]
+  }
+}

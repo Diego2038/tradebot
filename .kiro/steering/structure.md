@@ -18,14 +18,17 @@ tradebot/
 │   │   ├── db/               # modelos SQLAlchemy, sesión, repositorios
 │   │   └── schemas/          # modelos Pydantic (entrada/salida)
 │   └── tests/                # pytest
-└── frontend/                 # Flutter (web)
-    ├── Dockerfile            # multi-stage: build con SDK + serve estáticos
-    ├── pubspec.yaml
-    └── lib/
-        ├── main.dart
-        ├── screens/          # pantallas (setup de claves, dashboard)
-        ├── services/         # cliente REST + WebSocket hacia el backend
-        └── models/           # modelos de datos del frontend
+└── frontend/                 # React + TypeScript (Vite)
+    ├── Dockerfile            # multi-stage: build con Node + serve estáticos (nginx)
+    ├── nginx.conf            # config SPA (try_files -> index.html)
+    ├── package.json
+    ├── vite.config.ts
+    ├── index.html
+    └── src/
+        ├── main.tsx          # monta <App/> en #root
+        ├── App.tsx           # pantalla principal
+        ├── components/       # componentes de UI (setup de claves, dashboard)
+        └── services/         # cliente REST + WebSocket hacia el backend
 ```
 
 ## Mapa specs ↔ código
@@ -36,10 +39,11 @@ tradebot/
 - `05-backtest-engine`→ `backend/app/services/backtest/`
 - `06-risk-manager`   → `backend/app/services/risk/`
 - `07-bot-api`        → `backend/app/api/` + `backend/app/main.py`
-- `08-web-frontend`   → `frontend/lib/`
+- `08-web-frontend`   → `frontend/src/`
 
 ## Convenciones de nombres
 - Python: `snake_case` para módulos y funciones, `PascalCase` para clases.
-- Dart: `lowerCamelCase` para variables/métodos, `PascalCase` para clases/widgets.
+- TypeScript: `camelCase` para variables/funciones, `PascalCase` para componentes React y
+  tipos/interfaces.
 - Specs numerados por orden de dependencia (01 es la base; 07 y 08 dependen del resto).
 ```

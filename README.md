@@ -1,7 +1,8 @@
 # TradeBot
 
 Bot de trading automatizado sobre **Alpaca** (API oficial), controlado desde una web en
-Flutter. Backend en FastAPI, base de datos PostgreSQL, todo orquestado con Docker.
+React + TypeScript (Vite). Backend en FastAPI, base de datos PostgreSQL, todo orquestado
+con Docker.
 
 > **Solo paper trading.** La aplicación opera exclusivamente contra el entorno de pruebas
 > de Alpaca (`https://paper-api.alpaca.markets`). No se usa dinero real en esta fase.
@@ -19,7 +20,7 @@ Flutter. Backend en FastAPI, base de datos PostgreSQL, todo orquestado con Docke
 ## Arquitectura
 
 ```
-frontend (Flutter web)  ──REST/WebSocket──▶  backend (FastAPI)  ──▶  Alpaca (paper)
+frontend (React + Vite) ──REST/WebSocket──▶  backend (FastAPI)  ──▶  Alpaca (paper)
                                                     │
                                                     ▼
                                               PostgreSQL (credenciales cifradas, estado)
@@ -65,7 +66,7 @@ implementa en su propia sesión **Spec** de Kiro (requisitos → diseño → tar
 | `05-backtest-engine` | Simulación con datos históricos | `backend/app/services/backtest/` |
 | `06-risk-manager`    | Límites de pérdida y tamaño de lote | `backend/app/services/risk/` |
 | `07-bot-api`         | FastAPI: REST/WebSocket hacia el frontend | `backend/app/api/` |
-| `08-web-frontend`    | Flutter web: control + dashboard en vivo | `frontend/lib/` |
+| `08-web-frontend`    | React + Vite: control + dashboard en vivo | `frontend/src/` |
 
 ## Estado actual
 

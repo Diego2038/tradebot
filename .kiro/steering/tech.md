@@ -1,7 +1,8 @@
 # Stack técnico y comandos
 
 ## Componentes
-- **Frontend:** Flutter (target **web**). Servido como estáticos tras un build.
+- **Frontend:** React + TypeScript + Vite. Compilado y servido como estáticos tras un
+  build en Docker (stage de build con Node + stage ligero con nginx).
 - **Backend:** Python 3.12 + **FastAPI** (REST + WebSocket). SDK oficial `alpaca-py`.
 - **Base de datos:** PostgreSQL 16.
 - **Orquestación:** Docker + Docker Compose. Builds multi-stage para no requerir SDKs
@@ -10,9 +11,9 @@
 ## Reglas de arranque (Docker-first)
 - Todo se ejecuta en contenedores. El objetivo es: `docker compose up` levanta
   `db` + `backend` + `frontend` sin instalar nada localmente.
-- El frontend Flutter web se **compila dentro de Docker** (stage de build con el SDK) y
-  se sirve como estáticos (stage ligero, ej. nginx). No es necesario tener Flutter local
-  para ejecutar la app; sí es cómodo para desarrollar.
+- El frontend React se **compila dentro de Docker** (stage de build con Node) y se sirve
+  como estáticos (stage ligero con nginx). No es necesario tener Node local para ejecutar
+  la app; sí es cómodo para desarrollar (`npm run dev`).
 - Nunca hardcodear secretos. Config vía variables de entorno (`.env`, no versionado).
 
 ## Comandos habituales
