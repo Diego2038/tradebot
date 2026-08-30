@@ -8,42 +8,42 @@ The engine depends only on the spec-02 data models (`Bar`, `Quote`) — no Alpac
 
 ## Tasks
 
-- [ ] 1. Signals and domain errors
+- [x] 1. Signals and domain errors
   - Create `app/services/strategies/signals.py` with `Action(str, Enum)` containing exactly `BUY`, `SELL`, `HOLD`, and a frozen `Signal` dataclass `(action: Action, reason: str, timestamp: datetime)`.
   - Create `app/services/strategies/errors.py` with `StrategyError(Exception)` and `UnknownStrategyError(StrategyError)`.
   - _Requirements: 1.2, 1.4_
 
-- [ ] 2. Strategy interface and HOLD helper
+- [x] 2. Strategy interface and HOLD helper
   - Create `app/services/strategies/base.py` with a `@runtime_checkable` `Strategy` `Protocol` exposing `generate(self, bars: Sequence[Bar], quote: Quote | None = None) -> Signal`.
   - Add a `hold(reason: str, ts: datetime | None = None) -> Signal` helper that returns a HOLD `Signal` with a UTC timestamp, used for empty/insufficient data.
   - _Requirements: 1.1, 1.5, 1.6_
 
-- [ ] 3. Pure indicators (SMA and RSI)
+- [x] 3. Pure indicators (SMA and RSI)
   - Create `app/services/strategies/indicators.py` with `sma(values, period) -> list[Decimal]` and `rsi(values, period) -> list[Decimal]`, deterministic and side-effect-free, one value per window position, `[]` on insufficient data.
   - `sma` averages `period` consecutive closes; `rsi` uses average gains/losses (100 when average loss is zero), each value within `[0, 100]`.
   - Inline test: SMA of a constant series equals that constant; RSI values stay within `[0, 100]`; equal inputs produce equal outputs (determinism).
   - _Requirements: 3.1, 3.7_
 
-- [ ] 4. Random strategy
+- [x] 4. Random strategy
   - Create `app/services/strategies/random_strategy.py` with `RandomStrategy(seed: int | None = None)` holding a private `random.Random(seed)` instance so seeding is reproducible and global RNG state is untouched.
   - `generate` returns a random action in `{BUY, SELL, HOLD}` with a reason indicating randomness; with no bars and no quote it returns `HOLD` via the helper.
   - Inline test: same seed produces the same action sequence; all three actions are reachable with a fixed seed; the reason mentions "random".
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 1.6_
 
-- [ ] 5. Predictive strategy
+- [x] 5. Predictive strategy
   - Create `app/services/strategies/predictive_strategy.py` with `PredictiveStrategy(short_period=5, long_period=20, rsi_period=14, rsi_oversold=30, rsi_overbought=70)`.
   - Validate at construction (`ValueError`): each period in `[1, 500]`, `short_period < long_period`, and `0 < rsi_oversold < rsi_overbought < 100`.
   - `generate` computes SMA crossover and/or RSI over close prices: SMA short crossing above long or RSI exiting oversold -> BUY; SMA short crossing below long or RSI entering overbought -> SELL; otherwise HOLD; fewer bars than `max(long_period, rsi_period + 1)` -> HOLD. Deterministic; reason names the triggering indicator/condition.
   - Inline test: a constructed dataset forcing an upward/downward SMA cross produces the expected BUY/SELL; RSI pushed above overbought -> SELL and below oversold -> BUY; insufficient bars -> HOLD; invalid parameters -> `ValueError`.
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 1.6_
 
-- [ ] 6. Strategy engine registry, default wiring, and package exports
+- [x] 6. Strategy engine registry, default wiring, and package exports
   - Create `app/services/strategies/registry.py` with `StrategyEngine(default)` exposing `register(name, strategy)`, `get_active_name()`, `set_active(name)` (raises `UnknownStrategyError` and leaves the active mode unchanged when the name is not registered, checking membership before mutating), and `generate(bars, quote=None)` delegating to the active strategy.
   - Add default wiring that registers `random` and `predictive` and sets a deterministic default active mode; export `Action`, `Signal`, `Strategy`, the engine, and the errors from `app/services/strategies/__init__.py`.
   - Inline test: the default active mode is deterministic; switching by name changes the active strategy; an unregistered name raises `UnknownStrategyError` and leaves the active mode unchanged; `generate` delegates to the active strategy.
   - _Requirements: 1.3, 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 7. Essential property-based tests (Hypothesis)
+- [x] 7. Essential property-based tests (Hypothesis)
   - Add Hypothesis property tests (min. 100 iterations each), building random `Bar` sequences (including empty and short) and random close-price series. Each test carries the tag `# Feature: 03-strategy-engine, Property {n}: {property text}`.
     - **Property 1: Every strategy always returns a valid Signal** (action in `{BUY, SELL, HOLD}`, non-empty reason, timestamp set) — **Validates: Requirements 1.1, 1.2, 1.5, 2.1, 2.3**
     - **Property 2: Seeded random is reproducible** (two `RandomStrategy(seed)` instances produce identical action sequences) — **Validates: Requirements 2.5**
