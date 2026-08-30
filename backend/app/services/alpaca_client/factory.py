@@ -73,6 +73,62 @@ class AlpacaClientFactory:
         # api_key y secret quedan fuera de alcance al retornar; no se retienen.
         return client
 
+    def build_crypto_data_client(self):
+        """Construye el cliente de datos históricos de cripto de Alpaca (R1.7).
+
+        Reutiliza las credenciales cifradas activas, las descifra SOLO en
+        variables locales (nunca en ``self``, Security NFR 2) y las pasa al
+        constructor del SDK. Refuerza la barrera paper-only por coherencia con
+        el resto del factory (defensa en profundidad). Lanza
+        :class:`CredentialsRequiredError` si no hay credenciales configuradas
+        (R1.8).
+
+        Import perezoso de ``alpaca.data.historical`` para no acoplar la carga
+        del módulo ni requerir que ese submódulo esté presente/mockeado en
+        entornos que solo usan el cliente de trading.
+        """
+        assert_paper_only(self._settings)
+
+        credential = self._repository.get_active()
+        if credential is None:
+            raise CredentialsRequiredError("no credentials configured")
+
+        from alpaca.data.historical import CryptoHistoricalDataClient
+
+        # Descifrado SOLO en locales: nunca se asigna a self.
+        api_key = decrypt_secret(credential.encrypted_api_key)
+        secret = decrypt_secret(credential.encrypted_api_secret)
+
+        client = CryptoHistoricalDataClient(api_key, secret)
+        # api_key y secret quedan fuera de alcance al retornar; no se retienen.
+        return client
+
+    def build_crypto_data_stream(self):
+        """Construye el cliente de streaming de cripto de Alpaca (R2.1).
+
+        Mismo patrón que :meth:`build_crypto_data_client`: credenciales activas,
+        descifrado en locales, barrera paper-only y
+        :class:`CredentialsRequiredError` cuando faltan credenciales.
+
+        Import perezoso de ``alpaca.data.live`` por las mismas razones de
+        desacoplamiento.
+        """
+        assert_paper_only(self._settings)
+
+        credential = self._repository.get_active()
+        if credential is None:
+            raise CredentialsRequiredError("no credentials configured")
+
+        from alpaca.data.live import CryptoDataStream
+
+        # Descifrado SOLO en locales: nunca se asigna a self.
+        api_key = decrypt_secret(credential.encrypted_api_key)
+        secret = decrypt_secret(credential.encrypted_api_secret)
+
+        stream = CryptoDataStream(api_key, secret)
+        # api_key y secret quedan fuera de alcance al retornar; no se retienen.
+        return stream
+
     def validate(self, api_key: str, secret: str) -> None:
         """Construye un cliente efímero paper y sondea ``get_account()`` (R2.1).
 

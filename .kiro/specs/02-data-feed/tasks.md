@@ -13,7 +13,7 @@ Implementation language: **Python** (as used throughout the design).
 
 ## Tasks
 
-- [ ] 1. Define the single normalization format (`services/data_feed/models.py`)
+- [x] 1. Define the single normalization format (`services/data_feed/models.py`)
   - Create `services/data_feed/__init__.py` and `models.py`.
   - Implement `Bar` as a `@dataclass(frozen=True)` with exactly `timestamp: datetime`,
     `open/high/low/close/volume: Decimal`.
@@ -21,14 +21,14 @@ Implementation language: **Python** (as used throughout the design).
     `price: Decimal`.
   - _Requirements: 3.1_
 
-- [ ] 2. Implement normalizer, timeframes, and domain errors
-  - [ ] 2.1 Implement `timeframes.py` and `errors.py`
+- [x] 2. Implement normalizer, timeframes, and domain errors
+  - [x] 2.1 Implement `timeframes.py` and `errors.py`
     - `Timeframe(str, Enum)` with `1Min/5Min/15Min/1Hour/1Day`, `SUPPORTED_TIMEFRAMES`
       frozenset, and `to_alpaca_timeframe(tf)` mapping to the alpaca-py TimeFrame.
     - `errors.py`: `DataFeedError` base, `InvalidTimeframeError`, `InvalidRangeError`.
     - _Requirements: 1.4, 1.5_
 
-  - [ ] 2.2 Implement `Normalizer` (`normalizer.py`)
+  - [x] 2.2 Implement `Normalizer` (`normalizer.py`)
     - `from_alpaca_bar(raw) -> Bar | None` and `from_alpaca_quote(raw) -> Quote | None`,
       reading each required field defensively, returning `None` on any missing/unparseable
       field, converting numbers to `Decimal` and timestamps to UTC-aware `datetime`.
@@ -37,7 +37,7 @@ Implementation language: **Python** (as used throughout the design).
       missing a required field returns `None` and is logged.
     - _Requirements: 3.2, 3.3_
 
-- [ ] 3. Extend `AlpacaClientFactory` with crypto data builders
+- [x] 3. Extend `AlpacaClientFactory` with crypto data builders
   - Add `build_crypto_data_client()` and `build_crypto_data_stream()` to
     `services/alpaca_client/factory.py`, reusing the decrypted credentials and applying the
     existing `assert_paper_only` barrier; raise the reused `CredentialsRequiredError` when no
@@ -46,7 +46,7 @@ Implementation language: **Python** (as used throughout the design).
     empty credential store (no client constructed).
   - _Requirements: 1.7, 2.1_
 
-- [ ] 4. Implement `HistoricalDataService.get_bars` (`historical.py`)
+- [x] 4. Implement `HistoricalDataService.get_bars` (`historical.py`)
   - Validate timeframe (against `SUPPORTED_TIMEFRAMES`) and range (start present/parseable,
     end present, start <= end) BEFORE any Alpaca call, raising `InvalidTimeframeError` /
     `InvalidRangeError`.
@@ -59,7 +59,7 @@ Implementation language: **Python** (as used throughout the design).
     never called); empty store raises `CredentialsRequiredError` before any client build.
   - _Requirements: 1.1, 1.2, 1.3, 1.6, 1.7, 1.8, 1.9_
 
-- [ ] 5. Implement `MarketDataStreamer` (`streaming.py`)
+- [x] 5. Implement `MarketDataStreamer` (`streaming.py`)
   - Pub/sub: `subscribe`, `unsubscribe`, `_publish` fanning out normalized `Bar`/`Quote` to
     all callbacks.
   - `start()`: build the stream via factory, subscribe to BTC/USD, run the receive loop,
@@ -71,14 +71,14 @@ Implementation language: **Python** (as used throughout the design).
     releases the connection; two subscribers both receive a fed normalized update.
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 3.2, 3.3_
 
-- [ ]* 6. Add optional historical-bars HTTP router (`api/market_data.py`)
+- [x]* 6. Add optional historical-bars HTTP router (`api/market_data.py`)
   - `GET /market-data/bars?symbol&timeframe&start&end` returning `list[BarOut]`, mapping
     `InvalidTimeframeError`→400 `invalid_timeframe`, `InvalidRangeError`→400 `invalid_range`,
     `CredentialsRequiredError`→409 `no_credentials`, `TransientAlpacaError`→502
     `transient_error`; mount the router in `app/main.py`.
   - _Requirements: 1.1, 1.4, 1.5, 1.8, 1.9_
 
-- [ ]* 7. Write the property-based test suite (Hypothesis, Alpaca mocked)
+- [x]* 7. Write the property-based test suite (Hypothesis, Alpaca mocked)
   - Use `pytest` + `Hypothesis` + `pytest-asyncio`, min. 100 iterations each, Alpaca stubbed
     via `unittest.mock`; tag each test `Feature: 02-data-feed, Property {n}`.
   - **Property 1**: `get_bars` output is all `Bar` with exact fields and sorted ascending.

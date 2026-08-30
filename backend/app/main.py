@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api import credentials as credentials_api
+from app.api import market_data as market_data_api
 from app.core.config import get_settings
 from app.core.security import EncryptionError
 from app.db.base import Base
@@ -22,6 +23,10 @@ from app.services.alpaca_client.errors import (
     InvalidCredentialsError,
     PaperOnlyViolationError,
     TransientAlpacaError,
+)
+from app.services.data_feed.errors import (
+    InvalidRangeError,
+    InvalidTimeframeError,
 )
 
 # Importar los modelos registra sus tablas en Base.metadata antes de create_all.
@@ -48,6 +53,9 @@ app.add_middleware(
 # Routers de la capa cliente de Alpaca (spec 01-alpaca-client).
 app.include_router(credentials_api.router)
 app.include_router(credentials_api.account_router)
+
+# Router opcional de datos históricos (spec 02-data-feed, Tarea 6).
+app.include_router(market_data_api.router)
 
 
 def _error_response(status_code: int, error_code: str, detail: str) -> JSONResponse:
@@ -91,6 +99,22 @@ def _handle_transient(request: Request, exc: TransientAlpacaError) -> JSONRespon
 @app.exception_handler(AccountQueryError)
 def _handle_account_query(request: Request, exc: AccountQueryError) -> JSONResponse:
     return _error_response(502, "account_query_failed", "account query failed")
+
+
+# Errores de dominio del data-feed (spec 02-data-feed, Tarea 6). Se validan en
+# proceso ANTES de cualquier llamada a Alpaca, de modo que el frontend pueda
+# distinguir un timeframe no soportado (400 invalid_timeframe) de un rango de
+# fechas inválido (400 invalid_range) programáticamente (R1.4, R1.5).
+@app.exception_handler(InvalidTimeframeError)
+def _handle_invalid_timeframe(
+    request: Request, exc: InvalidTimeframeError
+) -> JSONResponse:
+    return _error_response(400, "invalid_timeframe", "unsupported timeframe")
+
+
+@app.exception_handler(InvalidRangeError)
+def _handle_invalid_range(request: Request, exc: InvalidRangeError) -> JSONResponse:
+    return _error_response(400, "invalid_range", "invalid date range")
 
 
 @app.exception_handler(CredentialsRequiredError)
