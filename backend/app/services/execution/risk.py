@@ -63,3 +63,20 @@ class RiskPort(Protocol):
     """
 
     def evaluate(self, proposed_order: ProposedOrder) -> RiskDecision: ...
+
+
+class AllowAllRiskManager:
+    """Trivial pass-through :class:`RiskPort` that approves every proposed order.
+
+    This exists **only** so the order-execution pipeline (spec ``04``) is runnable
+    and testable end to end *before* the real risk manager of spec
+    ``06-risk-manager`` exists. It applies no risk logic whatsoever.
+
+    Spec ``06-risk-manager`` provides the real ``RiskPort`` implementation that
+    replaces this pass-through; the executor depends only on the ``RiskPort``
+    protocol, so the swap requires no changes to the executor.
+    """
+
+    def evaluate(self, proposed_order: ProposedOrder) -> RiskDecision:
+        """Approve any proposed order unconditionally (R5.2)."""
+        return RiskDecision(approved=True, reason="allow-all pass-through")
