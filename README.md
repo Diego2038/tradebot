@@ -15,6 +15,7 @@ Bot de trading automatizado sobre **Alpaca** (API oficial), controlado desde una
 - [Tecnologías](#tecnologías)
 - [Requisitos previos](#requisitos-previos)
 - [Instalación](#instalación)
+- [Variables de entorno](#variables-de-entorno)
 - [Ejecución](#ejecución)
 - [Uso de la aplicación](#uso-de-la-aplicación)
 - [Pruebas](#pruebas)
@@ -135,8 +136,30 @@ Copia la línea que imprime y colócala en `.env`:
 APP_ENCRYPTION_KEY=pega_aqui_la_clave_generada
 ```
 
-> Las demás variables (`POSTGRES_*`, `ALPACA_PAPER_ONLY`, `DEFAULT_SYMBOL`, URLs) ya vienen con valores por defecto válidos.
+> Las demás variables (`POSTGRES_*`, `ALPACA_PAPER_ONLY`, `DEFAULT_SYMBOL`, URLs) ya vienen con valores por defecto válidos (ver [Variables de entorno](#variables-de-entorno)).
 > **La API Key/Secret de Alpaca NO va en `.env`**: se ingresa desde el frontend y el backend la guarda cifrada.
+
+---
+
+## Variables de entorno
+
+El archivo `.env` **se crea a partir de la plantilla `.env.example`** (`cp .env.example .env`, ver [Instalación](#instalación)). La plantilla trae valores por defecto válidos para todo salvo `APP_ENCRYPTION_KEY`, que debes generar tú.
+
+> 🔒 El `.env` **no se versiona** (está en `.gitignore`): contiene tu clave de cifrado. El que sí se sube al repo es `.env.example`, sin secretos reales.
+
+| Variable | Obligatoria | Valor por defecto | Descripción |
+|----------|:-----------:|-------------------|-------------|
+| `POSTGRES_USER` | No | `tradebot` | Usuario de PostgreSQL. |
+| `POSTGRES_PASSWORD` | No | `tradebot` | Contraseña de PostgreSQL. Cámbiala si expones la base de datos. |
+| `POSTGRES_DB` | No | `tradebot` | Nombre de la base de datos. |
+| `APP_ENCRYPTION_KEY` | **Sí** | *(vacío)* | Clave maestra Fernet para cifrar la API Key de Alpaca. **La app no arranca sin ella.** Genérala como se indica en [Instalación](#instalación). |
+| `ALPACA_PAPER_ONLY` | No | `true` | Barrera de seguridad. Debe permanecer en `true` en esta fase: impide operar contra producción (dinero real). |
+| `DEFAULT_SYMBOL` | No | `BTC/USD` | Activo con el que opera el bot por defecto. |
+| `API_BASE_URL` | No | `http://localhost:8000` | URL base del backend que consume el frontend (REST). |
+| `WS_BASE_URL` | No | `ws://localhost:8000/ws/bot` | URL del WebSocket del backend para las acciones en vivo. |
+| `DEBUG` | No | `false` | Activa el modo de depuración del backend (logs más verbosos). |
+
+> ⚠️ La **API Key/Secret de Alpaca no son variables de entorno**: se ingresan desde el frontend y el backend las almacena cifradas en la base de datos. Nunca las pongas en `.env`.
 
 ---
 
