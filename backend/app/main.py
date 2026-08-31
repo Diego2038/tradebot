@@ -6,6 +6,8 @@ backtest-engine, risk-manager, bot-api.
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -38,6 +40,8 @@ from app.services.data_feed.errors import (
     InvalidRangeError,
     InvalidTimeframeError,
 )
+from app.services.data_feed.historical import HistoricalDataService
+from app.services.data_feed.models import Bar
 from app.services.data_feed.streaming import MarketDataStreamer
 from app.services.execution.events import EventPublisher
 from app.services.execution.executor import OrderExecutor
@@ -120,6 +124,33 @@ _order_executor = OrderExecutor(
 _position_manager = PositionManager(_bot_factory, _event_publisher)
 _market_streamer = MarketDataStreamer(_bot_factory, symbol=settings.default_symbol)
 
+# Servicio de datos históricos (spec 02) reutilizando el mismo factory. Se usa
+# para precargar barras de warm-up al arrancar el bot, de modo que las
+# estrategias que necesitan una ventana (sobre todo `predictive`, que requiere
+# >= 20 barras) tengan datos desde el primer tick en vivo.
+_historical_service = HistoricalDataService(_bot_factory)
+
+
+def _preload_bars() -> list[Bar]:
+    """Trae las últimas ~50 barras 1Min del símbolo por defecto hasta ahora.
+
+    Best-effort: el orchestrator ya lo envuelve en try/except (la precarga nunca
+    debe impedir arrancar), pero por robustez aquí también atrapamos cualquier
+    fallo y devolvemos ``[]``. La ventana de 300 minutos da margen para reunir
+    holgadamente >= 20 barras 1Min. ``get_bars`` devuelve la lista ya ordenada
+    ascendente. Es síncrono (usa requests); el orchestrator lo ejecuta con
+    ``asyncio.to_thread`` para no bloquear el event loop durante el arranque.
+    """
+    try:
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(minutes=300)
+        return _historical_service.get_bars(
+            settings.default_symbol, "1Min", start, end
+        )
+    except Exception:  # noqa: BLE001 - precarga best-effort: nunca impide arrancar
+        return []
+
+
 # El orchestrator verifica que existan credenciales activas antes de arrancar
 # (R2.3): un start sin credenciales -> CredentialsRequiredError -> 409.
 _bot_orchestrator = BotOrchestrator(
@@ -129,6 +160,7 @@ _bot_orchestrator = BotOrchestrator(
     _position_manager,
     symbol=settings.default_symbol,
     credential_check=lambda: _bot_repository.get_active() is not None,
+    bar_preloader=_preload_bars,
 )
 
 # Hub que puentea el EventPublisher a los clientes WebSocket (R3).

@@ -45,6 +45,7 @@ explicit and directly testable.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections import deque
 from typing import Callable, Deque
@@ -83,6 +84,7 @@ class BotOrchestrator:
         *,
         credential_check: Callable[[], bool] | None = None,
         bar_buffer_size: int = DEFAULT_BAR_BUFFER,
+        bar_preloader: Callable[[], list[Bar]] | None = None,
     ) -> None:
         self._streamer = streamer
         self._engine = engine
@@ -90,11 +92,16 @@ class BotOrchestrator:
         self._position_manager = position_manager
         self._symbol = symbol
         self._credential_check = credential_check
+        self._bar_preloader = bar_preloader
         self._state: BotState = BotState.STOPPED
         # Rolling buffer of the most recent bars fed to engine.generate; the
         # latest quote is tracked so strategies that need it always get one.
         self._bars: Deque[Bar] = deque(maxlen=bar_buffer_size)
         self._last_quote: Quote | None = None
+        # Background task running the streamer's (infinite) reconnection loop.
+        # The loop is launched with ``asyncio.create_task`` in :meth:`start` so
+        # the HTTP handler returns immediately instead of awaiting it forever.
+        self._stream_task: asyncio.Task | None = None
 
     async def start(self, mode: str) -> BotStatus:
         """Start the pipeline in the given mode (R2.2, R2.3, R2.4, R2.8).
@@ -109,9 +116,17 @@ class BotOrchestrator:
           streamer wiring; an unregistered mode raises
           :class:`UnknownStrategyError`, which propagates with the state
           unchanged (``STOPPED``) (R2.4).
+        - Best-effort preloads recent historical bars into the rolling buffer
+          (if a ``bar_preloader`` was injected) so strategies that need a warm-up
+          window (notably ``predictive``, which needs >= 20 bars) have data from
+          the first live tick. A failing preload is logged and ignored: the bot
+          still starts with an empty buffer.
         - Subscribes :meth:`_on_market_data` (feeds engine + executor) and
-          ``position_manager.on_quote`` to the streamer, then starts the
-          streamer, transitioning to ``RUNNING`` (R2.2).
+          ``position_manager.on_quote`` to the streamer, then launches the
+          streamer's (infinite) reconnection loop as a **background task** and
+          transitions to ``RUNNING`` immediately (R2.2). Awaiting the loop
+          directly would hang the HTTP handler forever, so it is scheduled with
+          ``asyncio.create_task`` instead.
 
         Raises:
             CredentialsRequiredError: If ``credential_check`` reports no usable
@@ -134,21 +149,69 @@ class BotOrchestrator:
 
         # Set the active mode BEFORE wiring/starting the streamer (R2.4). An
         # unregistered mode raises UnknownStrategyError here, leaving state
-        # STOPPED and the streamer untouched.
+        # STOPPED and the streamer untouched (no task created).
         self._engine.set_active(mode)
 
-        # Wire the two independent consumers, then start the streamer (R2.2).
+        # Best-effort preload of recent historical bars so predictive has enough
+        # warm-up data from the first tick. Never blocks the start on failure.
+        # Run the (synchronous, network-bound) preloader off the event loop with
+        # ``asyncio.to_thread`` so it does not stall the loop while downloading.
+        if self._bar_preloader is not None:
+            try:
+                preloaded = await asyncio.to_thread(self._bar_preloader)
+                for bar in preloaded:
+                    self._bars.append(bar)
+                logger.info(
+                    "Preloaded %d historical bars for warm-up (symbol=%s)",
+                    len(preloaded),
+                    self._symbol,
+                )
+            except Exception:  # noqa: BLE001 - preload is best-effort, never blocks start
+                logger.exception(
+                    "Bar preload failed (symbol=%s); starting with empty buffer",
+                    self._symbol,
+                )
+
+        # Wire the two independent consumers (subscribe is idempotent per
+        # callback in the streamer, so a re-start does not cause double
+        # delivery), then launch the streamer loop as a background task (R2.2).
         self._streamer.subscribe(self._on_market_data)
         self._streamer.subscribe(self._position_manager.on_quote)
-        await self._streamer.start()
+        self._stream_task = asyncio.create_task(self._streamer.start())
 
         self._state = BotState.RUNNING
         logger.info("Bot started in mode=%s (symbol=%s)", mode, self._symbol)
         return self.status()
 
     async def stop(self) -> BotStatus:
-        """Stop the pipeline and release the streamer, transitioning to ``STOPPED`` (R2.5)."""
+        """Stop the pipeline and release the streamer, transitioning to ``STOPPED`` (R2.5).
+
+        First clears the streamer's active flag and releases its connection via
+        ``streamer.stop()`` (which makes the background loop's ``while`` exit),
+        then cancels and awaits the background task launched in :meth:`start`
+        (if any) so no orphan task is left behind. Cancellation and any residual
+        error from the awaited task are swallowed and logged; the task reference
+        is reset to ``None``. Robust even if the task already finished.
+        """
         await self._streamer.stop()
+
+        task = self._stream_task
+        if task is not None:
+            if not task.done():
+                task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception:  # noqa: BLE001 - teardown must not raise
+                logger.exception(
+                    "Background stream task raised on shutdown (symbol=%s); "
+                    "continuing",
+                    self._symbol,
+                )
+            finally:
+                self._stream_task = None
+
         self._state = BotState.STOPPED
         logger.info("Bot stopped (symbol=%s)", self._symbol)
         return self.status()

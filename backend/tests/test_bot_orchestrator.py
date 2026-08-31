@@ -22,6 +22,7 @@ Alpaca real. Casos (referenciados a los criterios de aceptación):
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 from datetime import datetime, timezone
@@ -111,6 +112,7 @@ def _build_orchestrator(
     credential_check=None,
     set_active_side_effect=None,
     generate_side_effect=None,
+    bar_preloader=None,
 ):
     """Construye un BotOrchestrator con mocks/fakes de todos los componentes."""
     streamer = Mock()
@@ -139,6 +141,7 @@ def _build_orchestrator(
         position_manager=position_manager,
         symbol="BTC/USD",
         credential_check=credential_check,
+        bar_preloader=bar_preloader,
     )
     return orch, streamer, engine, executor, position_manager
 
@@ -186,7 +189,15 @@ async def test_start_with_invalid_mode_propagates_and_state_unchanged() -> None:
 
 @pytest.mark.asyncio
 async def test_valid_start_sets_mode_subscribes_and_starts_streamer() -> None:
-    """(c) start válido -> set_active, subscribe, start una vez, RUNNING (R2.2)."""
+    """(c) start válido -> set_active, subscribe, tarea de fondo, RUNNING (R2.2).
+
+    Con el nuevo contrato, el bucle infinito del streamer se lanza como tarea de
+    fondo (``asyncio.create_task``) para que ``start()`` responda de inmediato en
+    lugar de colgarse. Verificamos que: el estado es RUNNING, se suscribieron los
+    dos consumidores, se creó una tarea de fondo, y ``streamer.start`` se ejecutó
+    (dándole una oportunidad de correr con ``asyncio.sleep(0)``). Cerramos la
+    tarea al final con ``stop()`` para no dejar tareas colgadas.
+    """
     orch, streamer, engine, _executor, position_manager = _build_orchestrator(
         credential_check=lambda: True
     )
@@ -194,7 +205,8 @@ async def test_valid_start_sets_mode_subscribes_and_starts_streamer() -> None:
     status = await orch.start("random")
 
     engine.set_active.assert_called_once_with("random")
-    streamer.start.assert_awaited_once()
+    # Se creó una tarea de fondo para el bucle del streamer.
+    assert orch._stream_task is not None
     # Se suscriben los dos consumidores: on_market_data y position_manager.on_quote.
     assert streamer.subscribe.call_count == 2
     subscribed = {call.args[0] for call in streamer.subscribe.call_args_list}
@@ -202,6 +214,13 @@ async def test_valid_start_sets_mode_subscribes_and_starts_streamer() -> None:
     assert position_manager.on_quote in subscribed
     assert status.state is BotState.RUNNING
     assert orch.status().state is BotState.RUNNING
+
+    # La corrutina agendada por create_task tiene ahora oportunidad de ejecutarse.
+    await asyncio.sleep(0)
+    streamer.start.assert_awaited_once()
+
+    # Limpieza: cancela/cierra la tarea de fondo para no dejarla colgada.
+    await orch.stop()
 
 
 # -- (d) start idempotente (R2.8) -------------------------------------------
@@ -214,15 +233,25 @@ async def test_start_is_idempotent_while_running() -> None:
         credential_check=lambda: True
     )
 
-    await orch.start("random")
+    first = await orch.start("random")
+    task_after_first = orch._stream_task
     second = await orch.start("random")
 
-    streamer.start.assert_awaited_once()
-    # El segundo start no vuelve a suscribir ni cambia set_active.
+    # El segundo start es no-op: misma tarea, sin re-suscribir ni re-set_active.
+    assert orch._stream_task is task_after_first
+    assert orch._stream_task is not None
     assert streamer.subscribe.call_count == 2
     engine.set_active.assert_called_once_with("random")
+    assert first.state is BotState.RUNNING
     assert second.state is BotState.RUNNING
     assert orch.status().state is BotState.RUNNING
+
+    # create_task agendó la corrutina una sola vez.
+    await asyncio.sleep(0)
+    streamer.start.assert_awaited_once()
+
+    # Limpieza.
+    await orch.stop()
 
 
 # -- (e) stop (R2.5) --------------------------------------------------------
@@ -235,12 +264,15 @@ async def test_stop_stops_streamer_and_transitions_to_stopped() -> None:
         credential_check=lambda: True
     )
     await orch.start("random")
+    assert orch._stream_task is not None
 
     status = await orch.stop()
 
     streamer.stop.assert_awaited_once()
     assert status.state is BotState.STOPPED
     assert orch.status().state is BotState.STOPPED
+    # La tarea de fondo quedó cancelada/cerrada y la referencia reseteada.
+    assert orch._stream_task is None
 
 
 # -- (f) status (R2.6) ------------------------------------------------------
@@ -304,3 +336,51 @@ def test_on_market_data_swallows_exceptions_and_does_not_propagate() -> None:
     # El executor no se llamó porque generate falló, pero el bot no se detuvo.
     executor.execute_signal.assert_not_called()
     assert orch.status().state is BotState.STOPPED
+
+
+# -- (h) start con preloader que devuelve barras -----------------------------
+
+
+@pytest.mark.asyncio
+async def test_start_preloads_bars_into_buffer() -> None:
+    """(h) start con bar_preloader -> las barras quedan en el buffer al arrancar.
+
+    Sembrar el buffer con barras históricas es lo que permite a `predictive`
+    disponer de la ventana de warm-up (>= 20 barras) desde el primer tick.
+    """
+    preloaded = [_make_bar() for _ in range(25)]
+    orch, _streamer, _engine, _executor, _pm = _build_orchestrator(
+        credential_check=lambda: True,
+        bar_preloader=lambda: preloaded,
+    )
+
+    await orch.start("predictive")
+
+    assert list(orch._bars) == preloaded
+    assert orch.status().state is BotState.RUNNING
+
+    await orch.stop()
+
+
+# -- (i) start con preloader que falla (best-effort) -------------------------
+
+
+@pytest.mark.asyncio
+async def test_start_survives_failing_preloader() -> None:
+    """(i) si el preloader lanza, start NO falla y el bot queda RUNNING (buffer vacío)."""
+
+    def _boom() -> list[Bar]:
+        raise RuntimeError("preload boom")
+
+    orch, _streamer, _engine, _executor, _pm = _build_orchestrator(
+        credential_check=lambda: True,
+        bar_preloader=_boom,
+    )
+
+    status = await orch.start("predictive")
+
+    # La precarga es best-effort: falla en silencio, el bot arranca igual.
+    assert status.state is BotState.RUNNING
+    assert len(orch._bars) == 0
+
+    await orch.stop()
