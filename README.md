@@ -201,6 +201,8 @@ Once startup finishes, open in your browser:
 3. Under the **Trading API** section, generate a paper **API Key** and its **Secret**. (Use Trading API, not Broker API.)
 4. Keep both handy — you'll paste them into the TradeBot web UI in the next section.
 
+> 📖 Reference: [How to connect to the Alpaca API (get your API Key and Secret)](https://alpaca.markets/learn/connect-to-alpaca-api?ref=alpaca.markets).
+
 ---
 
 ## Using the app (step by step)
@@ -586,6 +588,8 @@ Cuando termine el arranque, abre en tu navegador:
 2. En el panel, cambia a **Paper Trading**.
 3. En la sección **Trading API**, genera una **API Key** y su **Secret** de paper. (Usa Trading API, no Broker API.)
 4. Ténlas a mano: las pegarás en la web de TradeBot en la siguiente sección.
+
+> 📖 Referencia: [Cómo conectarse a la API de Alpaca (obtener tu API Key y Secret)](https://alpaca.markets/learn/connect-to-alpaca-api?ref=alpaca.markets).
 
 ---
 
