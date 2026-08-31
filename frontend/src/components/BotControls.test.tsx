@@ -55,7 +55,7 @@ describe("BotControls", () => {
     expect(onStart).not.toHaveBeenCalled();
   });
 
-  it("(c) with busy=true the Start and Stop buttons are disabled (R3.8)", () => {
+  it("(c) with busy=true the Start button is disabled (R3.8)", () => {
     render(
       <BotControls
         status={stoppedStatus}
@@ -66,7 +66,46 @@ describe("BotControls", () => {
     );
 
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+  });
+
+  it("(c2) with stopping=true the Stop button is disabled", () => {
+    render(
+      <BotControls
+        status={{ ...stoppedStatus, state: "running" }}
+        busy={false}
+        stopping={true}
+        onStart={vi.fn().mockResolvedValue(undefined)}
+        onStop={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
     expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+  });
+
+  it("(c3) a hung Start never blocks Stop: with busy=true and starting=true but stopping=false, Stop stays enabled and clicking it calls onStop", async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn().mockResolvedValue(undefined);
+    const onStop = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <BotControls
+        status={{ ...stoppedStatus, state: "running" }}
+        busy={true}
+        starting={true}
+        stopping={false}
+        onStart={onStart}
+        onStop={onStop}
+      />,
+    );
+
+    const stopButton = screen.getByRole("button", { name: "Stop" });
+    expect(stopButton).not.toBeDisabled();
+    // Start remains disabled while its own operation is in flight.
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+
+    await user.click(stopButton);
+
+    expect(onStop).toHaveBeenCalledTimes(1);
   });
 
   it("(d) displays the current status state, mode and symbol (R3.5)", () => {

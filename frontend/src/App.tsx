@@ -54,6 +54,10 @@ export function App(): JSX.Element {
   const [account, setAccount] = useState<AccountStatus | null>(null);
   const [botStatus, setBotStatus] = useState<BotStatus>(INITIAL_BOT_STATUS);
   const [busy, setBusy] = useState(false);
+  // Independent in-flight flags per bot operation so a hung Start never blocks
+  // Stop (product principle: reversibility and control).
+  const [starting, setStarting] = useState(false);
+  const [stopping, setStopping] = useState(false);
 
   const [credentialsError, setCredentialsError] = useState<string | null>(null);
   const [accountError, setAccountError] = useState<string | null>(null);
@@ -160,7 +164,7 @@ export function App(): JSX.Element {
   }
 
   async function onStart(mode: Mode): Promise<void> {
-    setBusy(true);
+    setStarting(true);
     setBotError(null);
     try {
       const result = await apiClient.startBot(mode);
@@ -178,12 +182,12 @@ export function App(): JSX.Element {
         setBotError("No se pudo arrancar el bot.");
       }
     } finally {
-      setBusy(false);
+      setStarting(false);
     }
   }
 
   async function onStop(): Promise<void> {
-    setBusy(true);
+    setStopping(true);
     setBotError(null);
     try {
       const result = await apiClient.stopBot();
@@ -191,7 +195,7 @@ export function App(): JSX.Element {
     } catch (err) {
       setBotError(messageOf(err, "No se pudo detener el bot."));
     } finally {
-      setBusy(false);
+      setStopping(false);
     }
   }
 
@@ -223,6 +227,8 @@ export function App(): JSX.Element {
       <BotControls
         status={botStatus}
         busy={busy}
+        starting={starting}
+        stopping={stopping}
         onStart={onStart}
         onStop={onStop}
         error={botError}

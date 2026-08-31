@@ -11,6 +11,10 @@ export interface BotControlsProps {
   status: BotStatus;
   /** Disables Start/Stop while a request is in flight (R3.8). */
   busy: boolean;
+  /** Disables the Start button while a start request is in flight. */
+  starting?: boolean;
+  /** Disables the Stop button while a stop request is in flight. */
+  stopping?: boolean;
   onStart: (mode: Mode) => Promise<void>;
   onStop: () => Promise<void>;
   error?: string | null;
@@ -19,7 +23,7 @@ export interface BotControlsProps {
 const MODES: Mode[] = ["random", "predictive"];
 
 export function BotControls(props: BotControlsProps): JSX.Element {
-  const { status, busy, onStart, onStop, error } = props;
+  const { status, busy, starting, stopping, onStart, onStop, error } = props;
 
   // Local state for the selected mode; initialized from the current status
   // mode, falling back to "random" (R3.1).
@@ -47,7 +51,7 @@ export function BotControls(props: BotControlsProps): JSX.Element {
           id="bot-mode-select"
           aria-label="Modo de operación"
           value={selectedMode}
-          disabled={busy}
+          disabled={busy || starting}
           onChange={(e) => setSelectedMode(e.target.value as Mode)}
         >
           {MODES.map((mode) => (
@@ -58,11 +62,14 @@ export function BotControls(props: BotControlsProps): JSX.Element {
         </select>
       </div>
 
-      {/* Start / Stop — both disabled while busy (R3.8). */}
+      {/* Start / Stop — each button disables only while its own operation is in
+          flight (R3.8). Stop must never depend on Start's in-flight state so a
+          hung start request can never block the user from stopping the bot
+          (product principle: reversibility and control). */}
       <div style={{ display: "flex", gap: "0.5rem" }}>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || starting}
           onClick={() => {
             void onStart(selectedMode);
           }}
@@ -71,7 +78,7 @@ export function BotControls(props: BotControlsProps): JSX.Element {
         </button>
         <button
           type="button"
-          disabled={busy}
+          disabled={stopping}
           onClick={() => {
             void onStop();
           }}
