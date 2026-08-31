@@ -322,10 +322,11 @@ El desarrollo está organizado en features modulares bajo `.kiro/specs/`, numera
 
 ## Estado del proyecto
 
-Aplicación funcional en fase de paper trading. **7 de los 8 specs están implementados y probados** (backend y frontend con sus suites de pruebas en verde):
+Aplicación funcional en fase de paper trading. **Los 8 specs están implementados y probados** (backend y frontend con sus suites de pruebas en verde):
 
-- ✅ `01-alpaca-client` · ✅ `02-data-feed` · ✅ `03-strategy-engine` · ✅ `04-order-execution` · ✅ `06-risk-manager` · ✅ `07-bot-api` · ✅ `08-web-frontend`
-- 🚧 `05-backtest-engine` — pendiente de implementar (simulador de estrategias sobre datos históricos).
+- ✅ `01-alpaca-client` · ✅ `02-data-feed` · ✅ `03-strategy-engine` · ✅ `04-order-execution` · ✅ `05-backtest-engine` · ✅ `06-risk-manager` · ✅ `07-bot-api` · ✅ `08-web-frontend`
+
+El `05-backtest-engine` simula una estrategia sobre datos históricos de BTC/USD (reproduce las barras en orden, reutiliza la misma interfaz `Strategy` que la operación en vivo, simula las operaciones en memoria sin tocar Alpaca) y reporta métricas de desempeño: retorno total, número de operaciones, win rate y drawdown máximo.
 
 ### No objetivos (por ahora)
 
