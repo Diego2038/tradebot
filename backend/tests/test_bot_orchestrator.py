@@ -18,6 +18,20 @@ Alpaca real. Casos (referenciados a los criterios de aceptación):
 - (g) _on_market_data -> un Quote llega a position_manager.on_quote; un Bar
   alimenta engine.generate + executor.execute_signal; una excepción en generate
   se captura y no propaga (resiliencia por tick).
+- (h) start con bar_preloader -> las barras precargadas quedan en el buffer.
+- (i) si el preloader falla, start NO falla (precarga best-effort).
+- (i2) si el preloader devuelve menos de WARMUP_BARS_MIN barras, el bot queda
+  RUNNING igualmente (el aviso de warm-up insuficiente es informativo).
+- (j) varios Quote del MISMO minuto -> la serie que ve el engine termina en una
+  barra EN FORMACIÓN con close == último precio y high/low = extremos vistos; el
+  buffer de barras cerradas no crece.
+- (k) rollover de minuto -> la barra en formación del minuto N se cierra y pasa
+  al buffer; la nueva barra en formación es del minuto N+1.
+- (l) llega un Bar oficial -> se apenda al buffer y la barra en formación se
+  descarta (la oficial supersede a la agregada; sin doble conteo).
+- (m) integración con el StrategyEngine y la PredictiveStrategy REALES: con el
+  buffer precargado y quotes de precio creciente, el pipeline emite BUY/SELL
+  (antes: HOLD para siempre, porque la serie de barras estaba congelada).
 """
 
 from __future__ import annotations
@@ -25,7 +39,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import types
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock
 
@@ -79,10 +93,14 @@ def _install_alpaca_stub() -> None:
 _install_alpaca_stub()
 
 from app.services.alpaca_client.errors import CredentialsRequiredError  # noqa: E402
-from app.services.bot.orchestrator import BotOrchestrator  # noqa: E402
+from app.services.bot.orchestrator import (  # noqa: E402
+    WARMUP_BARS_MIN,
+    BotOrchestrator,
+)
 from app.services.bot.state import BotState  # noqa: E402
 from app.services.data_feed.models import Bar, Quote  # noqa: E402
 from app.services.strategies.errors import UnknownStrategyError  # noqa: E402
+from app.services.strategies.registry import build_default_engine  # noqa: E402
 from app.services.strategies.signals import Action, Signal  # noqa: E402
 
 
@@ -92,6 +110,36 @@ def _make_signal(action: Action = Action.HOLD) -> Signal:
 
 def _make_quote(price: str = "64000.00") -> Quote:
     return Quote(timestamp=datetime.now(timezone.utc), price=Decimal(price))
+
+
+#: Minuto base determinista para los tests de agregación (barra en formación).
+_BASE_MINUTE = datetime(2024, 1, 2, 12, 0, 0, tzinfo=timezone.utc)
+
+
+def _quote_at(price: str, *, minute: int = 0, second: int = 0) -> Quote:
+    """Quote con timestamp determinista: ``_BASE_MINUTE + minute`` y ``second``."""
+    ts = _BASE_MINUTE.replace(minute=_BASE_MINUTE.minute + minute, second=second)
+    return Quote(timestamp=ts, price=Decimal(price))
+
+
+def _flat_bars(count: int, price: str) -> list[Bar]:
+    """``count`` barras OHLC planas al mismo precio, un minuto de separación.
+
+    Dejan las SMA corta y larga exactamente iguales, así el primer precio al alza
+    fuerza un cruce hacia arriba de forma determinista.
+    """
+    value = Decimal(price)
+    return [
+        Bar(
+            timestamp=_BASE_MINUTE.replace(minute=0) - timedelta(minutes=count - i),
+            open=value,
+            high=value,
+            low=value,
+            close=value,
+            volume=Decimal("1"),
+        )
+        for i in range(count)
+    ]
 
 
 def _make_bar() -> Bar:
@@ -113,20 +161,26 @@ def _build_orchestrator(
     set_active_side_effect=None,
     generate_side_effect=None,
     bar_preloader=None,
+    engine=None,
 ):
-    """Construye un BotOrchestrator con mocks/fakes de todos los componentes."""
+    """Construye un BotOrchestrator con mocks/fakes de todos los componentes.
+
+    ``engine`` permite inyectar un :class:`StrategyEngine` REAL (test (m)); si es
+    ``None`` se usa un mock.
+    """
     streamer = Mock()
     streamer.start = AsyncMock()
     streamer.stop = AsyncMock()
     streamer.subscribe = Mock()
 
-    engine = Mock()
-    engine.set_active = Mock(side_effect=set_active_side_effect)
-    engine.get_active_name = Mock(return_value=active_name)
-    engine.generate = Mock(
-        side_effect=generate_side_effect,
-        return_value=_make_signal(),
-    )
+    if engine is None:
+        engine = Mock()
+        engine.set_active = Mock(side_effect=set_active_side_effect)
+        engine.get_active_name = Mock(return_value=active_name)
+        engine.generate = Mock(
+            side_effect=generate_side_effect,
+            return_value=_make_signal(),
+        )
 
     executor = Mock()
     executor.execute_signal = Mock()
@@ -384,3 +438,167 @@ async def test_start_survives_failing_preloader() -> None:
     assert len(orch._bars) == 0
 
     await orch.stop()
+
+
+# -- (i2) warm-up insuficiente: solo avisa, no bloquea -----------------------
+
+
+@pytest.mark.asyncio
+async def test_start_with_insufficient_warmup_still_runs() -> None:
+    """(i2) preloader con < WARMUP_BARS_MIN barras -> el bot arranca igual.
+
+    El aviso de warm-up insuficiente es puramente informativo (observabilidad):
+    no debe impedir el arranque ni alterar el buffer.
+    """
+    preloaded = [_make_bar() for _ in range(WARMUP_BARS_MIN - 1)]
+    orch, _streamer, _engine, _executor, _pm = _build_orchestrator(
+        credential_check=lambda: True,
+        bar_preloader=lambda: preloaded,
+    )
+
+    status = await orch.start("predictive")
+
+    assert status.state is BotState.RUNNING
+    assert len(orch._bars) == WARMUP_BARS_MIN - 1
+
+    await orch.stop()
+
+
+# -- (j) agregación de quotes del mismo minuto en la barra en formación -------
+
+
+def test_quotes_in_same_minute_aggregate_into_forming_bar() -> None:
+    """(j) varios Quote del mismo minuto -> última barra = barra en formación.
+
+    La serie que recibe el engine termina en una barra cuyo ``close`` es el precio
+    del último quote y cuyo ``high``/``low`` son los extremos vistos en el minuto.
+    El buffer de barras cerradas NO crece dentro del minuto.
+    """
+    orch, _streamer, engine, _executor, _pm = _build_orchestrator()
+
+    orch._on_market_data(_quote_at("64000", second=1))
+    orch._on_market_data(_quote_at("64500", second=2))
+    orch._on_market_data(_quote_at("63800", second=3))
+    orch._on_market_data(_quote_at("64100", second=4))
+
+    bars_arg = engine.generate.call_args.args[0]
+    forming = bars_arg[-1]
+    assert isinstance(forming, Bar)
+    assert forming.timestamp == _BASE_MINUTE
+    assert forming.open == Decimal("64000")
+    assert forming.high == Decimal("64500")
+    assert forming.low == Decimal("63800")
+    assert forming.close == Decimal("64100")
+    # Ninguna barra cerrada aún: el minuto sigue en curso.
+    assert len(orch._bars) == 0
+    assert len(bars_arg) == 1
+
+
+# -- (k) rollover de minuto ---------------------------------------------------
+
+
+def test_minute_rollover_commits_forming_bar_to_buffer() -> None:
+    """(k) al cambiar de minuto, la barra en formación se cierra y pasa al buffer."""
+    orch, _streamer, engine, _executor, _pm = _build_orchestrator()
+
+    orch._on_market_data(_quote_at("64000", minute=0, second=5))
+    orch._on_market_data(_quote_at("64200", minute=0, second=30))
+    assert len(orch._bars) == 0
+
+    orch._on_market_data(_quote_at("64300", minute=1, second=1))
+
+    # La barra del minuto N quedó cerrada en el buffer con su último close.
+    assert len(orch._bars) == 1
+    closed = orch._bars[0]
+    assert closed.timestamp == _BASE_MINUTE
+    assert closed.close == Decimal("64200")
+    # La nueva barra en formación es del minuto N+1.
+    assert orch._forming_bar is not None
+    assert orch._forming_bar.timestamp == _BASE_MINUTE + timedelta(minutes=1)
+    assert orch._forming_bar.close == Decimal("64300")
+    # La serie pasada al engine incluye la cerrada y la en formación (al final).
+    bars_arg = engine.generate.call_args.args[0]
+    assert bars_arg == [closed, orch._forming_bar]
+
+
+# -- (l) un Bar oficial supersede a la barra en formación ---------------------
+
+
+def test_official_bar_supersedes_forming_bar() -> None:
+    """(l) llega un Bar oficial -> se apenda al buffer y se descarta la formación."""
+    orch, _streamer, engine, _executor, _pm = _build_orchestrator()
+
+    orch._on_market_data(_quote_at("64000", second=10))
+    assert orch._forming_bar is not None
+
+    bar = _make_bar()
+    orch._on_market_data(bar)
+
+    # Sin doble conteo: solo la barra oficial queda en la serie.
+    assert orch._forming_bar is None
+    assert list(orch._bars) == [bar]
+    assert engine.generate.call_args.args[0] == [bar]
+
+
+# -- (m) integración: predictive REAL opera en vivo (fix del bug) -------------
+
+
+def test_predictive_engine_emits_non_hold_signal_on_live_quotes() -> None:
+    """(m) con engine + PredictiveStrategy REALES, los quotes en vivo generan BUY.
+
+    Antes del fix el buffer de barras quedaba congelado entre barras oficiales, así
+    que ``predictive`` recalculaba siempre los mismos indicadores y devolvía HOLD
+    para siempre. Con la barra en formación, la serie avanza y el cruce de SMA se
+    dispara.
+
+    Construcción determinista: 25 barras planas (SMA corta == SMA larga) y luego
+    quotes con precio creciente en el mismo minuto; el close de la barra en
+    formación sube, la SMA corta (5) reacciona más rápido que la larga (20) y cruza
+    por encima -> BUY.
+    """
+    engine = build_default_engine()
+    engine.set_active("predictive")
+
+    orch, _streamer, _engine, executor, _pm = _build_orchestrator(engine=engine)
+
+    for bar in _flat_bars(25, "64000"):
+        orch._bars.append(bar)
+
+    # Sanity check: con la serie plana la estrategia no opera (HOLD).
+    assert engine.generate(list(orch._bars), None).action is Action.HOLD
+
+    for i, price in enumerate(("64100", "64200", "64300", "64400", "64500")):
+        orch._on_market_data(_quote_at(price, second=i + 1))
+
+    actions = [call.args[0].action for call in executor.execute_signal.call_args_list]
+    assert len(actions) == 5
+    assert any(action in (Action.BUY, Action.SELL) for action in actions), actions
+    assert Action.BUY in actions
+
+
+# -- (n) contador de ticks (observabilidad) -----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tick_counter_tracks_evaluations_and_stop_resets_it() -> None:
+    """(n) ``_ticks`` cuenta las evaluaciones del pipeline y ``stop()`` lo resetea.
+
+    El contador es lo que sostiene las trazas de observabilidad (INFO en los
+    primeros ticks y luego cada 10 HOLD, total al parar), así que se verifica el
+    número, no el texto del log.
+    """
+    orch, _streamer, _engine, _executor, _pm = _build_orchestrator(
+        credential_check=lambda: True
+    )
+    await orch.start("random")
+    assert orch._ticks == 0
+
+    for i in range(3):
+        orch._on_market_data(_quote_at("64000", second=i + 1))
+    orch._on_market_data(_make_bar())
+
+    assert orch._ticks == 4
+
+    await orch.stop()
+
+    assert orch._ticks == 0

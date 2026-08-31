@@ -9,11 +9,33 @@ Pipeline wiring (what "running" means): while running, each live ``Bar``/``Quote
 from the :class:`MarketDataStreamer` drives two independent consumers, both
 registered via ``streamer.subscribe(...)``:
 
-- :meth:`_on_market_data` maintains a rolling buffer of recent bars, calls
+- :meth:`_on_market_data` maintains a rolling buffer of recent bars **plus a
+  forming (in-progress) bar aggregated from live trades**, calls
   ``engine.generate(bars, quote)`` and forwards the resulting ``Signal`` to
   ``executor.execute_signal(signal)``.
 - ``position_manager.on_quote`` receives each live quote for Stop-Loss /
   Take-Profit evaluation.
+
+**Forming-bar aggregation (why it exists).** The live crypto feed delivers mostly
+individual trades, normalized as :class:`Quote` (see ``streaming.py``, which
+subscribes to trades); official 1-minute :class:`Bar` messages arrive at most
+once per minute. Strategies, however, consume *bars*: ``PredictiveStrategy`` is
+deliberately deterministic on its input bars and ignores the quote (spec 03,
+R3.7), detecting a crossover by comparing the last two SMA positions. If the
+orchestrator only appended ``Bar`` objects to the buffer, the bar series would
+stay frozen between official bars: every tick would recompute the exact same
+indicators and the bot would emit ``HOLD`` forever (``random`` was unaffected
+because it ignores bars).
+
+So the orchestrator — not the strategy — is where trades become bars: each quote
+updates a **forming bar** for the current minute (OHLC accumulated from the
+trades seen so far), and that forming bar is appended as the **last element** of
+the series handed to ``engine.generate``. The series therefore advances and its
+latest close tracks the current price, so windowed indicators (SMA/RSI) move and
+crossovers can fire in real time, without changing the strategy's deterministic
+contract over bars. When the minute rolls over, the finished forming bar is
+committed to the rolling buffer; when an official ``Bar`` arrives it supersedes
+the forming bar (which is discarded) to avoid double-counting the same minute.
 
 Design decisions honoured here (see design.md, Components > Bot orchestrator,
 Architecture > "Pipeline wiring", Error Handling, Correctness Properties P1-P4):
@@ -48,6 +70,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import deque
+from decimal import Decimal
 from typing import Callable, Deque
 
 from app.services.alpaca_client.errors import CredentialsRequiredError
@@ -57,6 +80,7 @@ from app.services.data_feed.streaming import MarketDataStreamer
 from app.services.execution.executor import OrderExecutor
 from app.services.execution.positions import PositionManager
 from app.services.strategies.registry import StrategyEngine
+from app.services.strategies.signals import Action
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +89,13 @@ __all__ = ["BotOrchestrator"]
 #: How many recent bars to keep in the rolling buffer fed to ``engine.generate``.
 DEFAULT_BAR_BUFFER = 200
 
+#: Minimum number of buffered bars for windowed strategies to be able to decide.
+#: This is the window ``PredictiveStrategy`` needs with its default periods:
+#: ``max(long_period=20, rsi_period + 1 = 15) == 20``. Below this, predictive can
+#: only emit HOLD ("insufficient bars"), so falling short of it after the warm-up
+#: preload is worth a warning.
+WARMUP_BARS_MIN = 20
+
 
 class BotOrchestrator:
     """Owns the bot lifecycle and the wired pipeline (R2).
@@ -72,6 +103,11 @@ class BotOrchestrator:
     Holds the shared singletons and the current :class:`BotState` (initially
     ``STOPPED``). Starting subscribes the market-data consumers and starts the
     streamer; stopping stops and releases it.
+
+    It also owns the bar series fed to the engine: a rolling buffer of closed
+    bars plus a forming bar aggregated from live trades (quotes), appended last
+    so windowed strategies see a series that advances on every tick. See the
+    module docstring for the rationale.
     """
 
     def __init__(
@@ -98,6 +134,18 @@ class BotOrchestrator:
         # latest quote is tracked so strategies that need it always get one.
         self._bars: Deque[Bar] = deque(maxlen=bar_buffer_size)
         self._last_quote: Quote | None = None
+        # Bar currently being aggregated from live trades (quotes) for the
+        # in-progress minute. Appended as the last element of the series handed
+        # to the engine so windowed indicators follow the current price; see the
+        # module docstring ("Forming-bar aggregation").
+        self._forming_bar: Bar | None = None
+        # Ticks (market-data data evaluated by the pipeline) of the current
+        # session. Used for observability: every non-HOLD signal is logged, and
+        # HOLDs are summarised at INFO on the first few ticks (immediate proof
+        # that the pipeline is alive after startup) and every 10 ticks from then
+        # on, so the logs prove liveness without flooding. Reset on
+        # :meth:`stop`.
+        self._ticks: int = 0
         # Background task running the streamer's (infinite) reconnection loop.
         # The loop is launched with ``asyncio.create_task`` in :meth:`start` so
         # the HTTP handler returns immediately instead of awaiting it forever.
@@ -172,6 +220,20 @@ class BotOrchestrator:
                     self._symbol,
                 )
 
+        # Observability: make an insufficient warm-up explicit at start time
+        # instead of letting the operator infer it from a stream of
+        # "insufficient bars" HOLDs. Runs whether or not a preloader was
+        # injected (no preloader => empty buffer => this fires).
+        if len(self._bars) < WARMUP_BARS_MIN:
+            logger.warning(
+                "Only %d bars buffered (< %d needed for windowed strategies); "
+                "predictive will emit HOLD until enough live bars accumulate "
+                "(symbol=%s)",
+                len(self._bars),
+                WARMUP_BARS_MIN,
+                self._symbol,
+            )
+
         # Wire the two independent consumers (subscribe is idempotent per
         # callback in the streamer, so a re-start does not cause double
         # delivery), then launch the streamer loop as a background task (R2.2).
@@ -192,6 +254,10 @@ class BotOrchestrator:
         (if any) so no orphan task is left behind. Cancellation and any residual
         error from the awaited task are swallowed and logged; the task reference
         is reset to ``None``. Robust even if the task already finished.
+
+        The in-progress forming bar is discarded so a new session never inherits
+        a half-aggregated minute from the previous one, and the tick counter is
+        logged (session total) and reset to 0.
         """
         await self._streamer.stop()
 
@@ -212,8 +278,16 @@ class BotOrchestrator:
             finally:
                 self._stream_task = None
 
+        # Clean up per-session aggregation state.
+        self._forming_bar = None
+
         self._state = BotState.STOPPED
-        logger.info("Bot stopped (symbol=%s)", self._symbol)
+        # The tick total closes the session's observability trail: it tells at a
+        # glance how many evaluations the pipeline actually ran.
+        logger.info(
+            "Bot stopped (symbol=%s) after %d ticks", self._symbol, self._ticks
+        )
+        self._ticks = 0
         return self.status()
 
     def status(self) -> BotStatus:
@@ -224,19 +298,68 @@ class BotOrchestrator:
             symbol=self._symbol,
         )
 
+    def _update_forming_bar(self, quote: Quote) -> None:
+        """Aggregate one live trade (quote) into the forming bar for its minute.
+
+        The quote's minute is ``quote.timestamp`` truncated to the minute. Two
+        cases:
+
+        - **Rollover** (no forming bar yet, or its minute differs): the previous
+          forming bar is complete, so it is committed to the rolling buffer, and
+          a fresh forming bar starts with ``open = high = low = close =
+          quote.price`` and ``volume = 0`` (trade sizes are not carried by
+          :class:`Quote`).
+        - **Same minute**: ``high``/``low`` extend to the running extremes and
+          ``close`` becomes the latest price; ``open``, ``timestamp`` and
+          ``volume`` are preserved.
+
+        :class:`Bar` is a frozen dataclass, so updates build a new instance.
+        """
+        minute = quote.timestamp.replace(second=0, microsecond=0)
+        forming = self._forming_bar
+
+        if forming is None or forming.timestamp != minute:
+            # Minute rolled over: the previous forming bar is now closed.
+            if forming is not None:
+                self._bars.append(forming)
+            self._forming_bar = Bar(
+                timestamp=minute,
+                open=quote.price,
+                high=quote.price,
+                low=quote.price,
+                close=quote.price,
+                volume=Decimal("0"),
+            )
+            return
+
+        self._forming_bar = Bar(
+            timestamp=forming.timestamp,
+            open=forming.open,
+            high=max(forming.high, quote.price),
+            low=min(forming.low, quote.price),
+            close=quote.price,
+            volume=forming.volume,
+        )
+
     def _on_market_data(self, datum: Bar | Quote) -> None:
         """Handle one live market-data datum: drive engine + executor (pipeline).
 
         The streamer delivers either a :class:`Bar` or a :class:`Quote`; the type
         is distinguished with ``isinstance``:
 
-        - A :class:`Bar` is appended to the rolling buffer.
-        - A :class:`Quote` becomes the current quote.
+        - A :class:`Bar` is appended to the rolling buffer and the forming bar is
+          discarded: the official bar supersedes the trades aggregated for that
+          minute, so keeping both would double-count it.
+        - A :class:`Quote` becomes the current quote **and** is aggregated into
+          the forming bar (:meth:`_update_forming_bar`).
 
-        On every datum, ``engine.generate(bars, quote)`` produces a ``Signal``
-        that is passed to ``executor.execute_signal(signal)``. The whole body is
-        wrapped in a try/except that logs and continues so a single bad tick
-        never stops the bot (Error Handling: per-tick resilience).
+        On every datum the engine receives ``buffer + forming bar`` (the forming
+        bar last, when present) so the series advances tick by tick and windowed
+        strategies react to the current price; ``engine.generate(bars, quote)``
+        produces a ``Signal`` that is passed to
+        ``executor.execute_signal(signal)``. The whole body is wrapped in a
+        try/except that logs and continues so a single bad tick never stops the
+        bot (Error Handling: per-tick resilience).
 
         Note: ``position_manager.on_quote`` is subscribed to the streamer
         independently (in :meth:`start`), so quotes reach it directly; this
@@ -245,10 +368,55 @@ class BotOrchestrator:
         try:
             if isinstance(datum, Bar):
                 self._bars.append(datum)
+                # The official bar for this minute wins over the aggregated one.
+                self._forming_bar = None
             elif isinstance(datum, Quote):
                 self._last_quote = datum
+                self._update_forming_bar(datum)
 
-            signal = self._engine.generate(list(self._bars), self._last_quote)
+            logger.debug("Market data tick: %s", type(datum).__name__)
+
+            bars = list(self._bars)
+            if self._forming_bar is not None:
+                bars.append(self._forming_bar)
+
+            signal = self._engine.generate(bars, self._last_quote)
+
+            # Observability: every actionable signal is logged at INFO; HOLDs go
+            # to DEBUG always plus an INFO heartbeat, so the logs distinguish
+            # "no data arriving" from "data arrived, decided HOLD". The first
+            # few ticks always emit the heartbeat to confirm right away that the
+            # pipeline is alive after startup (the crypto feed delivers roughly
+            # one tick per minute, so waiting for the 10th would mean ~10
+            # minutes of silence); afterwards it drops to one every 10 ticks to
+            # avoid flooding when the flow of trades is heavy.
+            self._ticks += 1
+            last_close = bars[-1].close if bars else None
+            if signal.action is not Action.HOLD:
+                logger.info(
+                    "Signal %s: %s | bars=%d last_close=%s",
+                    signal.action.value,
+                    signal.reason,
+                    len(bars),
+                    last_close,
+                )
+            else:
+                logger.debug(
+                    "Tick %d: HOLD (%s) | bars=%d last_close=%s",
+                    self._ticks,
+                    signal.reason,
+                    len(bars),
+                    last_close,
+                )
+                if self._ticks <= 3 or self._ticks % 10 == 0:
+                    logger.info(
+                        "Tick %d: HOLD (%s) | bars=%d last_close=%s",
+                        self._ticks,
+                        signal.reason,
+                        len(bars),
+                        last_close,
+                    )
+
             self._executor.execute_signal(signal)
         except Exception:  # noqa: BLE001 - one bad tick must never stop the bot
             logger.exception(

@@ -6,6 +6,7 @@ backtest-engine, risk-manager, bot-api.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, Request
@@ -55,6 +56,17 @@ from app.api.ws import WebSocketHub
 import app.db.models  # noqa: F401
 
 settings = get_settings()
+
+# Logging explícito: sin esto los logs de la aplicación (nivel INFO) no llegan a
+# stdout y el pipeline del bot queda invisible en `docker compose logs backend`.
+# Con DEBUG=true en el entorno se sube el detalle a DEBUG.
+logging.basicConfig(
+    level=logging.DEBUG if settings.debug else logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    force=True,
+)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
 
@@ -124,31 +136,88 @@ _order_executor = OrderExecutor(
 _position_manager = PositionManager(_bot_factory, _event_publisher)
 _market_streamer = MarketDataStreamer(_bot_factory, symbol=settings.default_symbol)
 
-# Servicio de datos históricos (spec 02) reutilizando el mismo factory. Se usa
-# para precargar barras de warm-up al arrancar el bot, de modo que las
-# estrategias que necesitan una ventana (sobre todo `predictive`, que requiere
-# >= 20 barras) tengan datos desde el primer tick en vivo.
-_historical_service = HistoricalDataService(_bot_factory)
+# Ventanas (en minutos) que prueba la precarga de barras, de menor a mayor. La
+# primera que devuelva datos gana. Motivo: el feed de cripto de Alpaca puede
+# devolver una respuesta VACÍA para una ventana reciente (retraso de publicación,
+# hueco puntual de datos), lo que antes se traducía en "0 barras precargadas" de
+# forma intermitente. Ampliar la ventana es la forma más simple y barata de
+# recuperarse de ese caso.
+_PRELOAD_WINDOWS_MINUTES: tuple[int, ...] = (300, 720, 1440)
 
 
 def _preload_bars() -> list[Bar]:
-    """Trae las últimas ~50 barras 1Min del símbolo por defecto hasta ahora.
+    """Precarga barras 1Min recientes del símbolo por defecto para el warm-up.
 
-    Best-effort: el orchestrator ya lo envuelve en try/except (la precarga nunca
-    debe impedir arrancar), pero por robustez aquí también atrapamos cualquier
-    fallo y devolvemos ``[]``. La ventana de 300 minutos da margen para reunir
-    holgadamente >= 20 barras 1Min. ``get_bars`` devuelve la lista ya ordenada
-    ascendente. Es síncrono (usa requests); el orchestrator lo ejecuta con
-    ``asyncio.to_thread`` para no bloquear el event loop durante el arranque.
+    Por qué está escrita así:
+
+    - **Ventana creciente** (``_PRELOAD_WINDOWS_MINUTES``): el feed de cripto
+      puede devolver vacío para una ventana reciente y dejar a ``predictive``
+      sin sus >= 20 barras (con el feed en vivo a ~1 barra/minuto, eso son ~20
+      minutos de HOLD forzado). Se reintenta con ventanas cada vez más amplias y
+      se devuelve la PRIMERA lista no vacía.
+    - **Sesión de BD propia y de vida corta**: esta función la ejecuta el
+      orchestrator en un worker thread vía ``asyncio.to_thread``, y las
+      ``Session`` de SQLAlchemy no son thread-safe. Crear/cerrar aquí una sesión
+      propia elimina ese riesgo por construcción en lugar de compartir la sesión
+      de larga vida del pipeline (``_bot_db``).
+    - **Best-effort pero OBSERVABLE**: los fallos no pueden impedir el arranque,
+      así que se devuelve ``[]``; pero cada intento fallido (excepción o
+      respuesta vacía) se registra en el log, de modo que "0 barras" ya no es
+      indistinguible de "no hay datos".
+
+    ``get_bars`` devuelve la lista ya ordenada ascendente. Es síncrona (usa
+    requests) y por eso el orchestrator la lanza fuera del event loop.
     """
+    db = SessionLocal()
     try:
-        end = datetime.now(timezone.utc)
-        start = end - timedelta(minutes=300)
-        return _historical_service.get_bars(
-            settings.default_symbol, "1Min", start, end
+        service = HistoricalDataService(
+            AlpacaClientFactory(CredentialRepository(db), settings)
         )
-    except Exception:  # noqa: BLE001 - precarga best-effort: nunca impide arrancar
+        for window in _PRELOAD_WINDOWS_MINUTES:
+            end = datetime.now(timezone.utc)
+            start = end - timedelta(minutes=window)
+            try:
+                bars = service.get_bars(
+                    settings.default_symbol, "1Min", start, end
+                )
+            except Exception as exc:  # noqa: BLE001 - se registra y se reintenta
+                logger.warning(
+                    "Historical bar preload attempt failed "
+                    "(symbol=%s window=%dmin): %s: %s",
+                    settings.default_symbol,
+                    window,
+                    type(exc).__name__,
+                    exc,
+                )
+                logger.debug("Preload attempt traceback", exc_info=True)
+                continue
+
+            if bars:
+                logger.info(
+                    "Historical bar preload got %d bars "
+                    "(symbol=%s window=%dmin)",
+                    len(bars),
+                    settings.default_symbol,
+                    window,
+                )
+                return bars
+
+            logger.warning(
+                "Historical bar preload returned an EMPTY series "
+                "(symbol=%s window=%dmin); retrying with a wider window",
+                settings.default_symbol,
+                window,
+            )
+
+        logger.warning(
+            "Historical bar preload returned no data after %d attempts "
+            "(symbol=%s); predictive will need ~20 live bars to warm up",
+            len(_PRELOAD_WINDOWS_MINUTES),
+            settings.default_symbol,
+        )
         return []
+    finally:
+        db.close()
 
 
 # El orchestrator verifica que existan credenciales activas antes de arrancar
