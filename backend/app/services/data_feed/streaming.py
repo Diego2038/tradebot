@@ -180,9 +180,16 @@ class MarketDataStreamer:
         if callable(subscribe_bars):
             subscribe_bars(self._on_bar, self._symbol)
 
-        subscribe_quotes = getattr(stream, "subscribe_quotes", None)
-        if callable(subscribe_quotes):
-            subscribe_quotes(self._on_quote, self._symbol)
+        # Alpaca crypto Quotes are bid/ask pairs (no single `price`); Trades carry
+        # `price`. Subscribe to trades so the normalizer receives a usable price.
+        # Fall back to quotes only if the stream does not expose trades.
+        subscribe_trades = getattr(stream, "subscribe_trades", None)
+        if callable(subscribe_trades):
+            subscribe_trades(self._on_trade, self._symbol)
+        else:
+            subscribe_quotes = getattr(stream, "subscribe_quotes", None)
+            if callable(subscribe_quotes):
+                subscribe_quotes(self._on_quote, self._symbol)
 
         await self._run(stream)
 
@@ -208,6 +215,14 @@ class MarketDataStreamer:
 
     async def _on_quote(self, raw: Any) -> None:
         """Async handler for raw quote/trade updates from the stream."""
+        self._handle_raw(raw, is_quote=True)
+
+    async def _on_trade(self, raw: Any) -> None:
+        """Async handler for raw trade updates from the stream.
+
+        Trades carry a single `price`, so they are normalized through the same
+        quote path (timestamp + price) into the internal Quote format.
+        """
         self._handle_raw(raw, is_quote=True)
 
     async def stop(self) -> None:

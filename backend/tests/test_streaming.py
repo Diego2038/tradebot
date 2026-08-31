@@ -94,6 +94,7 @@ class _FakeStream:
     def __init__(self, run_behavior=None):
         self.subscribed_bars: list = []
         self.subscribed_quotes: list = []
+        self.subscribed_trades: list = []
         self.closed = False
         self.stopped = False
         self._run_behavior = run_behavior
@@ -103,6 +104,9 @@ class _FakeStream:
 
     def subscribe_quotes(self, handler, *symbols):
         self.subscribed_quotes.append((handler, symbols))
+
+    def subscribe_trades(self, handler, *symbols):
+        self.subscribed_trades.append((handler, symbols))
 
     async def _run_forever(self):
         if self._run_behavior is not None:
