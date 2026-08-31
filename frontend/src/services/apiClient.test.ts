@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiClient, ApiError } from "./apiClient";
-import type { BotStatus, CredentialMetadata } from "../types";
+import type {
+  BacktestResult,
+  BotStatus,
+  CredentialMetadata,
+} from "../types";
 
 const BASE_URL = "http://backend.test";
 
@@ -87,6 +91,47 @@ describe("ApiClient", () => {
       expect.objectContaining({ method: "GET" }),
     );
     expect(result).toEqual(status);
+  });
+
+  it("(e) runBacktest issues POST /backtest with the JSON body and returns the parsed result", async () => {
+    const result: BacktestResult = {
+      total_return: "0.1000",
+      trade_count: 1,
+      win_rate: "1.0000",
+      max_drawdown: "0.0000",
+      bars_evaluated: 60,
+      trades: [
+        {
+          side: "buy",
+          qty: "0.01",
+          price: "42000.00",
+          timestamp: "2024-01-01T00:00:00Z",
+          reason: "sma_cross",
+          realized_profit: null,
+        },
+      ],
+    };
+    (g.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      jsonResponse(result),
+    );
+
+    const req = {
+      mode: "predictive" as const,
+      start: "2024-01-01T00:00:00Z",
+      end: "2024-01-02T00:00:00Z",
+      symbol: "BTC/USD",
+      timeframe: "1Hour" as const,
+      seed: 42,
+    };
+    const parsed = await client.runBacktest(req);
+
+    expect(g.fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = (g.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(url).toBe(`${BASE_URL}/backtest`);
+    expect(init.method).toBe("POST");
+    expect(init.headers).toMatchObject({ "Content-Type": "application/json" });
+    expect(JSON.parse(init.body as string)).toEqual(req);
+    expect(parsed).toEqual(result);
   });
 
   it("(d) a fetch that rejects (network) throws ApiError with error_code network", async () => {

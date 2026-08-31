@@ -20,8 +20,11 @@ import { AccountPanel } from "./components/AccountPanel";
 import { BotControls } from "./components/BotControls";
 import { ConnectionStatus } from "./components/ConnectionStatus";
 import { Dashboard } from "./components/Dashboard";
+import { BacktestPanel } from "./components/BacktestPanel";
 import type {
   AccountStatus,
+  BacktestResult,
+  BacktestRunRequest,
   BotStatus,
   CredentialMetadata,
   Mode,
@@ -62,6 +65,13 @@ export function App(): JSX.Element {
   const [credentialsError, setCredentialsError] = useState<string | null>(null);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [botError, setBotError] = useState<string | null>(null);
+
+  // Backtest state (spec 05 UI): result, in-flight flag and error message.
+  const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(
+    null,
+  );
+  const [backtestBusy, setBacktestBusy] = useState(false);
+  const [backtestError, setBacktestError] = useState<string | null>(null);
 
   // Real-time events + WebSocket connection status (R4).
   const { events, connectionStatus } = useBotEvents();
@@ -199,6 +209,45 @@ export function App(): JSX.Element {
     }
   }
 
+  async function onRunBacktest(req: BacktestRunRequest): Promise<void> {
+    setBacktestBusy(true);
+    setBacktestError(null);
+    try {
+      const res = await apiClient.runBacktest(req);
+      setBacktestResult(res);
+    } catch (err) {
+      // Branch on the stable error_code, not the message text. The previously
+      // displayed result stays visible on error.
+      if (err instanceof ApiError && err.error_code === "no_credentials") {
+        setBacktestError(
+          "Configura tus credenciales de Alpaca antes de ejecutar un backtest.",
+        );
+      } else if (
+        err instanceof ApiError &&
+        err.error_code === "invalid_timeframe"
+      ) {
+        setBacktestError("Timeframe no soportado.");
+      } else if (
+        err instanceof ApiError &&
+        (err.error_code === "invalid_range" ||
+          err.error_code === "invalid_date_range")
+      ) {
+        setBacktestError("Rango de fechas inválido.");
+      } else if (
+        err instanceof ApiError &&
+        err.error_code === "transient_error"
+      ) {
+        setBacktestError(
+          "Problema temporal al obtener datos de Alpaca, intenta de nuevo.",
+        );
+      } else {
+        setBacktestError("No se pudo ejecutar el backtest.");
+      }
+    } finally {
+      setBacktestBusy(false);
+    }
+  }
+
   return (
     <main
       style={{
@@ -232,6 +281,13 @@ export function App(): JSX.Element {
         onStart={onStart}
         onStop={onStop}
         error={botError}
+      />
+
+      <BacktestPanel
+        onRun={onRunBacktest}
+        result={backtestResult}
+        busy={backtestBusy}
+        error={backtestError}
       />
 
       <Dashboard events={events} />

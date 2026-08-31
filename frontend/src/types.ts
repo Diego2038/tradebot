@@ -37,6 +37,39 @@ export interface BotStatus {
   symbol: string;
 }
 
+/** Valid bar timeframes accepted by the backtest endpoint (spec 05). */
+export type Timeframe = "1Min" | "5Min" | "15Min" | "1Hour" | "1Day";
+
+/** Request body for POST /backtest. */
+export interface BacktestRunRequest {
+  mode: Mode;
+  start: string; // ISO 8601
+  end: string; // ISO 8601
+  symbol?: string; // default "BTC/USD"
+  timeframe?: Timeframe; // default "1Min"
+  seed?: number | null;
+}
+
+/** A single simulated trade returned by the backtest engine. */
+export interface SimulatedTrade {
+  side: string;
+  qty: string;
+  price: string;
+  timestamp: string;
+  reason: string;
+  realized_profit: string | null;
+}
+
+/** Result payload from POST /backtest. Decimals travel as strings. */
+export interface BacktestResult {
+  total_return: string;
+  trade_count: number;
+  win_rate: string;
+  max_drawdown: string;
+  trades: SimulatedTrade[];
+  bars_evaluated: number;
+}
+
 /** A JSON-serialized OrderEvent received over the WebSocket (R4.2). */
 export interface BotEvent {
   event_type: EventType;

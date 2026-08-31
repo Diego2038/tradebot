@@ -3,6 +3,8 @@
 
 import type {
   AccountStatus,
+  BacktestResult,
+  BacktestRunRequest,
   BotStatus,
   CredentialMetadata,
   Mode,
@@ -112,6 +114,20 @@ export class ApiClient {
   /** GET /bot/status -> estado del bot. */
   async getBotStatus(): Promise<BotStatus> {
     return this.request<BotStatus>("/bot/status", { method: "GET" });
+  }
+
+  // --- Backtest (spec 05) ---
+
+  /**
+   * POST /backtest con { mode, start, end, symbol?, timeframe?, seed? } ->
+   * resultado de la simulación (métricas + trades). El backtest es determinista:
+   * con la misma seed y el mismo rango produce el mismo resultado.
+   */
+  async runBacktest(req: BacktestRunRequest): Promise<BacktestResult> {
+    return this.request<BacktestResult>("/backtest", {
+      method: "POST",
+      body: req,
+    });
   }
 
   /**

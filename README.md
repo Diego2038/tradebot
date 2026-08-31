@@ -51,6 +51,7 @@ TradeBot is a web application that runs an automated trading bot on the **Alpaca
 - 🔐 **Alpaca API Key encrypted** in the database (Fernet symmetric encryption). It is decrypted only in the backend's memory when building the client. It is never returned to the frontend nor written to logs.
 - 📡 **Real-time transparency:** every bot action is streamed to the frontend over WebSocket.
 - ▶️⏹️ **Full control:** start and stop the bot at any moment from the interface.
+- 📊 **Backtesting from the web:** simulate a strategy over historical BTC/USD data (deterministic, reproducible with a seed) and review its performance metrics.
 - 🐳 **Zero setup friction:** clone the repo and run one command to bring up the whole app. No need to install Python, Node, or PostgreSQL locally.
 
 ---
@@ -235,6 +236,14 @@ Once the app is running and you have your paper API Key/Secret, follow these ste
 - Click the **Stop** button to stop the bot at any moment. It stops evaluating the strategy and releases the market-data connection.
 - Stop is always available while the bot runs, honoring the product principle of reversibility and control.
 
+### 6. Run a backtest (optional)
+
+A **backtest** simulates a strategy over historical BTC/USD data **without trading for real** — it replays past bars in order and simulates the trades the strategy would have taken.
+
+- In the **Backtest** panel, choose the **mode** (`random` or `predictive`), a **timeframe** (`1Min`, `5Min`, `15Min`, `1Hour`, `1Day`), and a **date range** (start and end). Optionally set a **seed**.
+- Press **Ejecutar backtest** (Run backtest). When it finishes, the panel shows the performance metrics — **total return**, **number of trades**, **win rate** and **maximum drawdown** — plus the number of **bars evaluated** and the list of simulated trades.
+- The backtest is **deterministic**: with the same seed and date range it always produces the same result, which makes runs reproducible and comparable.
+
 > 🔁 **After changing frontend code**, rebuild its container so nginx serves the new build:
 > ```bash
 > sudo docker compose up -d --build frontend
@@ -377,7 +386,7 @@ Functional application in the paper-trading phase. **All 8 specs are implemented
 
 - ✅ `01-alpaca-client` · ✅ `02-data-feed` · ✅ `03-strategy-engine` · ✅ `04-order-execution` · ✅ `05-backtest-engine` · ✅ `06-risk-manager` · ✅ `07-bot-api` · ✅ `08-web-frontend`
 
-The `05-backtest-engine` simulates a strategy over historical BTC/USD data (replays bars in order, reuses the same `Strategy` interface as live operation, simulates trades in memory without touching Alpaca) and reports performance metrics: total return, number of trades, win rate, and maximum drawdown.
+The `05-backtest-engine` simulates a strategy over historical BTC/USD data (replays bars in order, reuses the same `Strategy` interface as live operation, simulates trades in memory without touching Alpaca) and reports performance metrics: total return, number of trades, win rate, and maximum drawdown. It is now exposed via `POST /backtest` and wired to the frontend, so you can launch backtests directly from the web UI.
 
 ### Non-goals (for now)
 
@@ -439,6 +448,7 @@ TradeBot es una aplicación web que ejecuta un bot de trading automatizado sobre
 - 🔐 **API Key de Alpaca cifrada** en la base de datos (cifrado simétrico Fernet). Solo se descifra en memoria del backend al construir el cliente. Nunca se devuelve al frontend ni se escribe en logs.
 - 📡 **Transparencia en tiempo real:** toda acción del bot se transmite al frontend por WebSocket.
 - ▶️⏹️ **Control total:** arranca y detén el bot en cualquier momento desde la interfaz.
+- 📊 **Backtesting desde la web:** simula una estrategia sobre datos históricos de BTC/USD (determinista, reproducible con una seed) y revisa sus métricas de rendimiento.
 - 🐳 **Cero fricción de setup:** clonar el repo y ejecutar un comando basta para levantar toda la aplicación. No necesitas instalar Python, Node ni PostgreSQL localmente.
 
 ---
@@ -623,6 +633,14 @@ Con la app levantada y tu API Key/Secret de paper a mano, sigue estos pasos en l
 - Haz clic en el botón **Stop** para detener el bot en cualquier momento. Deja de evaluar la estrategia y libera la conexión de datos de mercado.
 - Stop está siempre disponible mientras el bot corre, respetando el principio de producto de reversibilidad y control.
 
+### 6. Ejecuta un backtest (opcional)
+
+Un **backtest** simula una estrategia sobre datos históricos de BTC/USD **sin operar en real**: reproduce las barras pasadas en orden y simula las operaciones que la estrategia habría tomado.
+
+- En el panel de **Backtest**, elige el **modo** (`random` o `predictive`), un **timeframe** (`1Min`, `5Min`, `15Min`, `1Hour`, `1Day`) y un **rango de fechas** (inicio y fin). Opcionalmente fija una **seed**.
+- Pulsa **Ejecutar backtest**. Al terminar, el panel muestra las métricas de rendimiento — **retorno total**, **número de operaciones**, **win rate** y **drawdown máximo** — además del número de **barras evaluadas** y la lista de operaciones simuladas.
+- El backtest es **determinista**: con la misma seed y el mismo rango de fechas produce siempre el mismo resultado, lo que hace las ejecuciones reproducibles y comparables.
+
 > 🔁 **Tras cambiar código del frontend**, reconstruye su contenedor para que nginx sirva el nuevo build:
 > ```bash
 > sudo docker compose up -d --build frontend
@@ -765,7 +783,7 @@ Aplicación funcional en fase de paper trading. **Los 8 specs están implementad
 
 - ✅ `01-alpaca-client` · ✅ `02-data-feed` · ✅ `03-strategy-engine` · ✅ `04-order-execution` · ✅ `05-backtest-engine` · ✅ `06-risk-manager` · ✅ `07-bot-api` · ✅ `08-web-frontend`
 
-El `05-backtest-engine` simula una estrategia sobre datos históricos de BTC/USD (reproduce las barras en orden, reutiliza la misma interfaz `Strategy` que la operación en vivo, simula las operaciones en memoria sin tocar Alpaca) y reporta métricas de desempeño: retorno total, número de operaciones, win rate y drawdown máximo.
+El `05-backtest-engine` simula una estrategia sobre datos históricos de BTC/USD (reproduce las barras en orden, reutiliza la misma interfaz `Strategy` que la operación en vivo, simula las operaciones en memoria sin tocar Alpaca) y reporta métricas de desempeño: retorno total, número de operaciones, win rate y drawdown máximo. Ahora está expuesto vía `POST /backtest` y conectado al frontend, así que puedes lanzar backtests directamente desde la web.
 
 ### No objetivos (por ahora)
 
