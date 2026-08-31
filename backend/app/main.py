@@ -10,12 +10,14 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api import bot as bot_api
 from app.api import credentials as credentials_api
 from app.api import market_data as market_data_api
+from app.api import ws as ws_api
 from app.core.config import get_settings
 from app.core.security import EncryptionError
 from app.db.base import Base
-from app.db.session import engine
+from app.db.session import SessionLocal, engine
 from app.services.alpaca_client.barrier import assert_paper_only
 from app.services.alpaca_client.errors import (
     AccountQueryError,
@@ -24,10 +26,21 @@ from app.services.alpaca_client.errors import (
     PaperOnlyViolationError,
     TransientAlpacaError,
 )
+from app.services.alpaca_client.factory import AlpacaClientFactory
+from app.services.alpaca_client.repository import CredentialRepository
+from app.services.bot.orchestrator import BotOrchestrator
 from app.services.data_feed.errors import (
     InvalidRangeError,
     InvalidTimeframeError,
 )
+from app.services.data_feed.streaming import MarketDataStreamer
+from app.services.execution.events import EventPublisher
+from app.services.execution.executor import OrderExecutor
+from app.services.execution.positions import PositionManager
+from app.services.risk import RiskManager
+from app.services.strategies.errors import UnknownStrategyError
+from app.services.strategies.registry import build_default_engine
+from app.api.ws import WebSocketHub
 
 # Importar los modelos registra sus tablas en Base.metadata antes de create_all.
 import app.db.models  # noqa: F401
@@ -56,6 +69,70 @@ app.include_router(credentials_api.account_router)
 
 # Router opcional de datos históricos (spec 02-data-feed, Tarea 6).
 app.include_router(market_data_api.router)
+
+
+# ---------------------------------------------------------------------------
+# Cableado del pipeline del bot (spec 07-bot-api, Tarea 4).
+#
+# Se construyen UNA sola vez al arranque los singletons compartidos que forman
+# el pipeline de trading, inyectando el RiskManager REAL (spec 06) en el
+# OrderExecutor en lugar del AllowAllRiskManager provisional (decisión de
+# integración clave de esta spec).
+#
+# Sesión de BD dedicada de larga vida: el AlpacaClientFactory (spec 01) necesita
+# un CredentialRepository con una Session. Como el bot es un proceso único y de
+# larga duración (fase single-user / single-bot), se crea una sesión dedicada
+# para su pipeline en lugar de una sesión por request. El resto de endpoints REST
+# siguen usando la dependency get_db (sesión por request) sin cambios.
+# ---------------------------------------------------------------------------
+_bot_db = SessionLocal()
+_bot_repository = CredentialRepository(_bot_db)
+_bot_factory = AlpacaClientFactory(_bot_repository, settings)
+
+# Pub/sub en memoria de OrderEvent (spec 04); el WebSocketHub se suscribe a él.
+_event_publisher = EventPublisher()
+
+# Motor de estrategias con las estrategias por defecto (spec 03).
+_strategy_engine = build_default_engine()
+
+# RiskManager REAL (spec 06) con límites conservadores desde Settings. Se inyecta
+# en el OrderExecutor sustituyendo al AllowAllRiskManager provisional (spec 04).
+_risk_manager = RiskManager(
+    daily_loss_limit=settings.risk_daily_loss_limit,
+    max_qty=settings.risk_max_qty,
+)
+
+_order_executor = OrderExecutor(
+    _bot_factory,
+    _risk_manager,
+    _event_publisher,
+    symbol=settings.default_symbol,
+    qty=settings.default_qty,
+)
+_position_manager = PositionManager(_bot_factory, _event_publisher)
+_market_streamer = MarketDataStreamer(_bot_factory, symbol=settings.default_symbol)
+
+# El orchestrator verifica que existan credenciales activas antes de arrancar
+# (R2.3): un start sin credenciales -> CredentialsRequiredError -> 409.
+_bot_orchestrator = BotOrchestrator(
+    _market_streamer,
+    _strategy_engine,
+    _order_executor,
+    _position_manager,
+    symbol=settings.default_symbol,
+    credential_check=lambda: _bot_repository.get_active() is not None,
+)
+
+# Hub que puentea el EventPublisher a los clientes WebSocket (R3).
+_ws_hub = WebSocketHub(_event_publisher)
+
+# Publicar los singletons compartidos en app.state para que los routers los lean.
+app.state.bot_orchestrator = _bot_orchestrator
+app.state.ws_hub = _ws_hub
+
+# Routers del bot: control REST (spec 07 Tarea 4) y feed WebSocket (Tarea 2).
+app.include_router(bot_api.router)
+app.include_router(ws_api.router)
 
 
 def _error_response(status_code: int, error_code: str, detail: str) -> JSONResponse:
@@ -127,6 +204,16 @@ def _handle_credentials_required(
 @app.exception_handler(PaperOnlyViolationError)
 def _handle_paper_only(request: Request, exc: PaperOnlyViolationError) -> JSONResponse:
     return _error_response(500, "paper_only_violation", "paper-only barrier violation")
+
+
+# Bot API (spec 07-bot-api): un modo de estrategia no registrado en POST
+# /bot/start se mapea a 400 invalid_mode, distinguible del 409 no_credentials
+# (que reutiliza el handler de CredentialsRequiredError ya definido) (R2.4).
+@app.exception_handler(UnknownStrategyError)
+def _handle_unknown_strategy(
+    request: Request, exc: UnknownStrategyError
+) -> JSONResponse:
+    return _error_response(400, "invalid_mode", "unknown strategy mode")
 
 
 @app.on_event("startup")

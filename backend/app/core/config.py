@@ -1,6 +1,7 @@
 """Configuración de la aplicación, cargada desde variables de entorno."""
 from __future__ import annotations
 
+from decimal import Decimal
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -27,6 +28,14 @@ class Settings(BaseSettings):
 
     # Activo por defecto
     default_symbol: str = "BTC/USD"
+
+    # Límites de riesgo del bot (spec 06-risk-manager, inyectados en el
+    # OrderExecutor). Valores por defecto conservadores; se pueden ajustar por
+    # entorno. Se usan Decimal para no perder precisión monetaria.
+    risk_daily_loss_limit: Decimal = Decimal("100")
+    risk_max_qty: Decimal = Decimal("0.01")
+    # Cantidad por orden que envía el OrderExecutor (paper). Conservadora.
+    default_qty: Decimal = Decimal("0.001")
 
 
 @lru_cache

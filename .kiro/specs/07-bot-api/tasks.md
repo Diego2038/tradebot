@@ -17,13 +17,13 @@ commands are run with `sudo`.
 
 ## Tasks
 
-- [ ] 1. Bot state types (`services/bot/state.py`)
+- [x] 1. Bot state types (`services/bot/state.py`)
   - Create `app/services/bot/__init__.py` and `app/services/bot/state.py` with
     `BotState(str, Enum)` (`RUNNING = "running"`, `STOPPED = "stopped"`) and a frozen
     `BotStatus` dataclass `(state: BotState, mode: str, symbol: str)`.
   - _Requirements: 2.6_
 
-- [ ] 2. WebSocket hub and endpoint (`api/ws.py`)
+- [x] 2. WebSocket hub and endpoint (`api/ws.py`)
   - Create `app/api/ws.py` with a `WebSocketHub(publisher)` that subscribes once to the
     spec-04 `EventPublisher`, keeps a set of connected `WebSocket`s, and exposes
     `connect`/`disconnect`/`broadcast`. `broadcast` serializes an `OrderEvent` to a JSON-safe
@@ -37,7 +37,7 @@ commands are run with `sudo`.
     is dropped and the others still receive it; the serialized payload contains no secrets.
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 3. Bot orchestrator (`services/bot/orchestrator.py`)
+- [x] 3. Bot orchestrator (`services/bot/orchestrator.py`)
   - Create `app/services/bot/orchestrator.py` with `BotOrchestrator(streamer, engine,
     executor, position_manager, symbol="BTC/USD")` owning the `BotState`.
   - `start(mode)`: verify credentials exist (surface `CredentialsRequiredError` if not, no
@@ -56,7 +56,7 @@ commands are run with `sudo`.
     stop → streamer stopped, status stopped.
   - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8_
 
-- [ ] 4. REST router, schemas, and main.py wiring (`api/bot.py`, `schemas/bot.py`, `main.py`)
+- [x] 4. REST router, schemas, and main.py wiring (`api/bot.py`, `schemas/bot.py`, `main.py`)
   - Create `app/schemas/bot.py` with `BotStartRequest` (`mode: Literal["random","predictive"]`)
     and `BotStatusResponse` (`state`, `mode`, `symbol`).
   - Create `app/api/bot.py` with `POST /bot/start`, `POST /bot/stop`, `GET /bot/status`
@@ -75,7 +75,7 @@ commands are run with `sudo`.
     /bot/status` → state/mode/symbol; `/health` still reports paper mode.
   - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8_
 
-- [ ] 5. Essential property-based tests (Hypothesis)
+- [x] 5. Essential property-based tests (Hypothesis)
   - Add one Hypothesis test suite grouping the seven essential properties from the design
     (min. 100 iterations each; domain components and Alpaca mocked/stubbed; FastAPI
     `TestClient`/`pytest-asyncio` as needed). Tag each test `# Feature: 07-bot-api, Property
