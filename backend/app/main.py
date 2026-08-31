@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api import backtest as backtest_api
 from app.api import bot as bot_api
 from app.api import credentials as credentials_api
 from app.api import market_data as market_data_api
@@ -28,6 +29,10 @@ from app.services.alpaca_client.errors import (
 )
 from app.services.alpaca_client.factory import AlpacaClientFactory
 from app.services.alpaca_client.repository import CredentialRepository
+from app.services.backtest.errors import (
+    InvalidActionError,
+    InvalidDateRangeError,
+)
 from app.services.bot.orchestrator import BotOrchestrator
 from app.services.data_feed.errors import (
     InvalidRangeError,
@@ -69,6 +74,9 @@ app.include_router(credentials_api.account_router)
 
 # Router opcional de datos históricos (spec 02-data-feed, Tarea 6).
 app.include_router(market_data_api.router)
+
+# Router del backtest engine (spec 05-backtest-engine).
+app.include_router(backtest_api.router)
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +222,26 @@ def _handle_unknown_strategy(
     request: Request, exc: UnknownStrategyError
 ) -> JSONResponse:
     return _error_response(400, "invalid_mode", "unknown strategy mode")
+
+
+# Backtest engine (spec 05-backtest-engine): errores de dominio del motor de
+# replay. Se distinguen de los errores del data-feed: aquí InvalidDateRangeError
+# proviene del propio engine (el data-feed valida el rango ANTES y produce
+# invalid_range), e InvalidActionError indica que una estrategia devolvió una
+# acción fuera de BUY/SELL/HOLD durante el replay (R1.8, R1.9). Un modo no
+# registrado reutiliza el handler de UnknownStrategyError (400 invalid_mode).
+@app.exception_handler(InvalidDateRangeError)
+def _handle_invalid_date_range(
+    request: Request, exc: InvalidDateRangeError
+) -> JSONResponse:
+    return _error_response(400, "invalid_date_range", "invalid backtest date range")
+
+
+@app.exception_handler(InvalidActionError)
+def _handle_invalid_action(request: Request, exc: InvalidActionError) -> JSONResponse:
+    return _error_response(
+        400, "invalid_action", "strategy returned an invalid action"
+    )
 
 
 @app.on_event("startup")
