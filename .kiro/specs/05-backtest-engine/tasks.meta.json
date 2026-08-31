@@ -1,0 +1,107 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Domain errors and constants": [
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147123491
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147132765
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147244003
+      }
+    ],
+    "2. Data models": [
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147123645
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147248642
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147403997
+      }
+    ],
+    "3. Pure metrics module": [
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147123817
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147249511
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147404138
+      }
+    ],
+    "4. Backtest engine replay loop": [
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147124374
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147409182
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147717675
+      }
+    ],
+    "5. Package exports": [
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147124578
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147725150
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147835954
+      }
+    ],
+    "6. Essential property-based tests (Hypothesis)": [
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147124740
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788147850066
+      },
+      {
+        "executionId": "370d6b4a-d64d-48d3-a21e-a7029efbe316",
+        "chatSessionId": "sess_0d6d626a-e03b-48df-9c91-e19b07a8edda",
+        "timestamp": 1788148395515
+      }
+    ]
+  }
+}
