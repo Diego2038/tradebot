@@ -22,7 +22,7 @@ sudo docker run --rm -v "$PWD/frontend":/app -w /app node:20-alpine \
 
 ## Tasks
 
-- [ ] 1. Test tooling and shared types
+- [x] 1. Test tooling and shared types
   - Add test devDeps to `frontend/package.json`: `vitest`, `@testing-library/react`,
     `@testing-library/jest-dom`, `jsdom`, `fast-check`; add script `"test": "vitest run"`.
   - Add a `test` block to `frontend/vite.config.ts` (`environment: "jsdom"`, `globals: true`,
@@ -32,7 +32,7 @@ sudo docker run --rm -v "$PWD/frontend":/app -w /app node:20-alpine \
     `ApiError` shape (mirroring the spec-07 surface).
   - _Requirements: 1.5, 2.2, 3.1, 3.5, 4.2, 4.5, 5.1_
 
-- [ ] 2. REST client (`services/apiClient.ts`, extended)
+- [x] 2. REST client (`services/apiClient.ts`, extended)
   - Add an `ApiError` class carrying a stable `error_code`, `message`, and optional `status`.
   - Add `getCredentials`, `saveCredentials(apiKey, secret)`, `deleteCredentials`, `getAccount`,
     `startBot(mode)`, `stopBot`, `getBotStatus`; every method is `async`.
@@ -45,7 +45,7 @@ sudo docker run --rm -v "$PWD/frontend":/app -w /app node:20-alpine \
     `error_code === "no_credentials"`.
   - _Requirements: 1.2, 1.4, 1.6, 1.7, 2.1, 2.3, 3.2, 3.3, 3.4, 3.6, 3.7_
 
-- [ ] 3. WebSocket stream + `useBotEvents` hook (`services/botStream.ts`, `hooks/useBotEvents.ts`)
+- [x] 3. WebSocket stream + `useBotEvents` hook (`services/botStream.ts`, `hooks/useBotEvents.ts`)
   - Extend `BotStream` with `connect(onEvent, onStatus)` and `disconnect()`: emit
     `"connecting"` on connect, `"connected"` on open, `JSON.parse` each message into a
     `BotEvent` passed to `onEvent` (a malformed message is logged and ignored), and on
@@ -59,28 +59,28 @@ sudo docker run --rm -v "$PWD/frontend":/app -w /app node:20-alpine \
     `BotEvent`; a simulated close emits `"disconnected"` and schedules a reconnection attempt.
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 4. Presentation components
-  - [ ] 4.1 `PaperTradingBanner.tsx`
+- [x] 4. Presentation components
+  - [x] 4.1 `PaperTradingBanner.tsx`
     - Render a persistent notice that the app runs in paper trading with no real money.
     - _Requirements: 5.1, 5.2_
 
-  - [ ] 4.2 `CredentialsForm.tsx`
+  - [x] 4.2 `CredentialsForm.tsx`
     - Render an API Key ID text input and a **masked** Secret input (`type="password"`); read
       the Secret at submit time and pass it to `onSave` — never store it in state nor render it.
       When `metadata.exists`, show `key_id_last4` and `validation_status` plus a delete action;
       never show the Secret. On error, show the error while keeping current metadata visible.
     - _Requirements: 1.1, 1.3, 1.5, 1.6, 1.7_
 
-  - [ ] 4.3 `AccountPanel.tsx`
+  - [x] 4.3 `AccountPanel.tsx`
     - Render `cash`/`buying_power` and `status` when `account` is present; otherwise show the
       load error.
     - _Requirements: 2.2, 2.3_
 
-  - [ ] 4.4 `ConnectionStatus.tsx`
+  - [x] 4.4 `ConnectionStatus.tsx`
     - Render the current `ConnectionStatus` (`connected`/`connecting`/`disconnected`).
     - _Requirements: 4.5_
 
-  - [ ] 4.5 `Dashboard.tsx`
+  - [x] 4.5 `Dashboard.tsx`
     - Map `events` (already most-recent-first) to rows showing `event_type`, `symbol`, `side`,
       `qty`, `price`, and `timestamp`.
     - _Requirements: 4.2, 4.3_
@@ -91,7 +91,7 @@ sudo docker run --rm -v "$PWD/frontend":/app -w /app node:20-alpine \
       required fields; the `PaperTradingBanner` is present.
     - _Requirements: 1.3, 1.5, 4.2, 5.1_
 
-- [ ] 5. Bot controls (`components/BotControls.tsx`)
+- [x] 5. Bot controls (`components/BotControls.tsx`)
   - Render a `random`/`predictive` selector, Start and Stop buttons (both disabled while
     `busy`), and the current `state`, `mode`, and `symbol`; call `onStart(mode)` / `onStop()`.
     Branch on `error_code` to show distinct guidance for `no_credentials` and `invalid_mode`.
@@ -99,7 +99,7 @@ sudo docker run --rm -v "$PWD/frontend":/app -w /app node:20-alpine \
     shows the configure-credentials message and keeps the displayed state `stopped`.
   - _Requirements: 3.1, 3.2, 3.3, 3.5, 3.6, 3.7, 3.8_
 
-- [ ] 6. App composition and top-level state (`App.tsx`)
+- [x] 6. App composition and top-level state (`App.tsx`)
   - Replace `App.tsx` with the real composition: on mount call `getCredentials()`, and if
     credentials exist also call `getAccount()` and `getBotStatus()`; compose
     `PaperTradingBanner`, `CredentialsForm`, `AccountPanel`, `BotControls`, `ConnectionStatus`,
@@ -110,7 +110,7 @@ sudo docker run --rm -v "$PWD/frontend":/app -w /app node:20-alpine \
     `PaperTradingBanner` is visible.
   - _Requirements: 1.4, 2.1, 3.4, 3.8, 4.1, 4.5, 5.1_
 
-- [ ] 7. Essential property-based tests (fast-check)
+- [x] 7. Essential property-based tests (fast-check)
   - Add one fast-check + Vitest + Testing Library (jsdom) test suite grouping the six essential
     properties from the design (min. 100 iterations each; `fetch`/`WebSocket` mocked). Tag each
     test `// Feature: 08-web-frontend, Property {n}: {property text}`.

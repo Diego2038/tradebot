@@ -11,12 +11,11 @@ venv/
 .pytest_cache/
 *.egg-info/
 
-# Flutter / Dart
-frontend/.dart_tool/
-frontend/build/
-frontend/.flutter-plugins
-frontend/.flutter-plugins-dependencies
-frontend/pubspec.lock
+# Frontend (React + TypeScript + Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
 
 # Docker / datos
 db_data/
