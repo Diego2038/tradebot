@@ -15,13 +15,13 @@ Testing is kept minimal and folded into the implementation task that produces th
   - Keep the module pure Python (dataclasses / `Protocol` / `Decimal`) with no `alpaca` import.
   - _Requirements: 3.1_
 
-- [ ] 2. Configuration error and equity provider port (`errors.py`, `equity.py`)
+- [x] 2. Configuration error and equity provider port (`errors.py`, `equity.py`)
   - Create `backend/app/services/risk/__init__.py` and `backend/app/services/risk/errors.py` with `RiskConfigError(ValueError)`, raised at `RiskManager` construction on invalid configuration (never by `evaluate`).
   - Create `backend/app/services/risk/equity.py` with `EquityProvider` as a `@runtime_checkable` `Protocol` exposing `get_equity() -> Decimal | None`, plus the optional `AccountServiceEquityProvider` adapter that wraps spec `01`'s `AccountService` and returns `None` on any failure so the caller degrades to `approved=False` rather than crashing.
   - `equity.py` depends only on the package structure; it does not depend on `rules.py` or `manager.py` and never imports `alpaca`.
   - _Requirements: 2.2, 2.7_
 
-- [ ] 3. Pure rule helpers (`rules.py`)
+- [x] 3. Pure rule helpers (`rules.py`)
   - Create `backend/app/services/risk/rules.py` with the stable, secret-free reason constants (`REASON_INVALID_QTY`, `REASON_MAX_LOT`, `REASON_EQUITY_UNAVAILABLE`, `REASON_DAILY_LOSS`).
   - Implement `effective_allowed_max(max_qty, max_equity_pct, equity) -> Decimal | None` (returns `max_qty` when no pct, `min(max_qty, equity * pct / 100)` when equity is available and positive, `None` when equity is required but unavailable/non-positive).
   - Implement `check_lot_size(qty, max_qty, max_equity_pct, equity) -> RiskDecision | None` (invalid `qty <= 0` → invalid-qty block without lot comparison; equity required but unavailable → equity-unavailable block; `qty > effective_allowed_max` → max-lot block; otherwise `None`).
@@ -29,7 +29,7 @@ Testing is kept minimal and folded into the implementation task that produces th
   - Inline tests: lot within/above the max; `qty <= 0` rejected as invalid without lot comparison; equity required but unavailable rejected; daily-loss boundary (below vs at/above the limit).
   - _Requirements: 1.4, 1.5, 2.3, 2.4, 2.5, 2.6, 2.7_
 
-- [ ] 4. Risk manager and package exports (`manager.py`, `__init__.py`)
+- [x] 4. Risk manager and package exports (`manager.py`, `__init__.py`)
   - Create `backend/app/services/risk/manager.py` with `RiskManager(daily_loss_limit, max_qty, max_equity_pct=None, equity_provider=None, publisher=None)` implementing `RiskPort` by importing `ProposedOrder`/`RiskDecision` from `app.services.execution.risk`.
   - Validate configuration at construction, raising `RiskConfigError`: `daily_loss_limit > 0`, `max_qty > 0`, and `max_equity_pct` in `(0, 100]` when set.
   - Maintain private per-UTC-day state (`_current_utc_day`, `_accumulated_loss >= 0`); implement `record_realized_pnl(amount, at=None)` that resets the accumulated loss to zero when the UTC day changes, then applies the amount (losses raise it, profits lower it but never below zero).
@@ -38,7 +38,7 @@ Testing is kept minimal and folded into the implementation task that produces th
   - Inline tests: invalid config (`daily_loss_limit <= 0`, `max_qty <= 0`, `max_equity_pct` outside `(0, 100]`) raises `RiskConfigError`; `evaluate` approves within limits and blocks per rule; two identical calls return equal decisions (determinism); a UTC-day change resets the accumulated loss; `isinstance(rm, RiskPort)` is `True`.
   - _Requirements: 1.1, 1.2, 1.3, 1.6, 1.8, 2.1, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
-- [ ] 5. Essential property-based tests (Hypothesis)
+- [x] 5. Essential property-based tests (Hypothesis)
   - Add one Hypothesis test suite grouping the six essential properties from the design (min. 100 iterations each; `EquityProvider` mocked as a stub returning a configured `Decimal | None`); import ONLY `app.services.execution.risk` for the port types so no `alpaca` dependency is pulled in. Tag each test with **Feature: 06-risk-manager, Property {n}: {property text}**.
     - **Property 1: Invalid quantity is rejected as invalid** — **Validates: Requirements 2.6**
     - **Property 2: Lot-size boundary** — **Validates: Requirements 2.2, 2.4, 2.5**
