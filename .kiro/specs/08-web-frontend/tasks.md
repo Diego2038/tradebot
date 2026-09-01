@@ -85,7 +85,7 @@ sudo docker run --rm -v "$PWD/frontend":/app -w /app node:20-alpine \
       `qty`, `price`, and `timestamp`.
     - _Requirements: 4.2, 4.3_
 
-  - [ ]* 4.6 Inline component tests
+  - [x]* 4.6 Inline component tests
     - The Secret input is `type="password"` and the submitted Secret does not appear in the DOM;
       existing metadata shows only non-sensitive fields; the Dashboard renders one event with all
       required fields; the `PaperTradingBanner` is present.
