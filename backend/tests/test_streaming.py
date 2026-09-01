@@ -8,9 +8,13 @@ bucle async real de Alpaca (el factory y el stream se mockean por completo):
   sin dormir de verdad) (R2.3).
 - (b) Pub/sub: dos callbacks suscritos reciben ambos un mismo datum normalizado
   publicado vía ``_publish``; ``unsubscribe`` deja de recibir (R2.2).
-- (c) ``stop()`` libera la conexión: con un stream mockeado (``build_crypto_data_stream``
-  devuelve un fake con ``close``/``stop``), tras ``stop()`` ``_active`` es False y
-  se llamó a cerrar/soltar la conexión (R2.4).
+- (c) ``stop()`` libera la conexión (R2.4): con un stream mockeado, tras ``stop()``
+  ``_active`` es False, ``_stream`` es None y se recorrió la secuencia de cierre
+  **async** completa (``stop_ws`` para señalizar + ``close`` para cerrar el
+  socket) sin tocar el ``stop()`` sincrónico del SDK (que hace deadlock si se
+  llama desde el event loop). Se cubren también el último recurso sincrónico
+  (dobles sin métodos async) y que un fallo en ``stop_ws`` no impide el
+  ``close``.
 - (d) ``start()`` reconecta con backoff parcheando el sleep (no espera de verdad)
   y sin terminar el proceso; tras varios fallos se detiene al limpiar ``_active``
   (R2.1, R2.3).
@@ -88,7 +92,15 @@ class _FakeStream:
     """Sustituto de alpaca CryptoDataStream para tests de start/stop.
 
     ``run_behavior`` controla qué hace ``_run_forever``: puede lanzar (simula
-    desconexión) o registrar la llamada. Registra subscribe_* y close/stop.
+    desconexión) o registrar la llamada. Registra subscribe_* y las llamadas de
+    cierre.
+
+    Los métodos de cierre replican el SDK real (alpaca-py ``DataStream``):
+    ``stop_ws()`` y ``close()`` son **async** (señalizar y cerrar el socket,
+    respectivamente) y ``stop()`` es **sincrónico** (internamente hace
+    ``run_coroutine_threadsafe(...).result(timeout=5)``, lo que bloquea el event
+    loop si se llama desde dentro de él). Así el test puede afirmar que el
+    streamer usa la vía async y NO la sincrónica.
     """
 
     def __init__(self, run_behavior=None):
@@ -97,6 +109,7 @@ class _FakeStream:
         self.subscribed_trades: list = []
         self.closed = False
         self.stopped = False
+        self.stop_ws_called = False
         self._run_behavior = run_behavior
 
     def subscribe_bars(self, handler, *symbols):
@@ -113,10 +126,32 @@ class _FakeStream:
             self._run_behavior()
 
     def stop(self):
+        # Vía sincrónica del SDK: NO debe usarse desde el event loop.
         self.stopped = True
 
-    def close(self):
+    async def stop_ws(self):
+        self.stop_ws_called = True
+
+    async def close(self):
         self.closed = True
+
+
+class _SyncOnlyStream:
+    """Doble simple que SOLO expone el cierre sincrónico ``stop()``."""
+
+    def __init__(self) -> None:
+        self.stopped = False
+
+    def stop(self):
+        self.stopped = True
+
+
+class _FailingStopWsStream(_FakeStream):
+    """Fake cuyo ``stop_ws()`` falla, para comprobar que ``close()`` se intenta igual."""
+
+    async def stop_ws(self):
+        self.stop_ws_called = True
+        raise RuntimeError("stop_ws boom")
 
 
 def _factory_returning(*streams):
@@ -200,6 +235,13 @@ def test_subscribe_is_idempotent() -> None:
 
 @pytest.mark.asyncio
 async def test_stop_releases_connection_and_clears_active() -> None:
+    """Cierre por la vía async completa: ``stop_ws`` + ``close``, nunca ``stop``.
+
+    ``close()`` es el paso que realmente libera el socket (y con él el slot de
+    conexión del proveedor). La aserción ``fake.stopped is False`` es el guard de
+    regresión: llamar al ``stop()`` sincrónico del SDK desde el event loop lo
+    bloquea (deadlock -> TimeoutError) y deja la conexión abierta, que era el bug.
+    """
     fake = _FakeStream()
     streamer = MarketDataStreamer(factory=mock.Mock())
     # Simulamos que start() dejó una conexión activa.
@@ -210,8 +252,43 @@ async def test_stop_releases_connection_and_clears_active() -> None:
 
     assert streamer._active is False
     assert streamer._stream is None
-    # Se cerró la conexión: 'stop' es la primera opción probada.
+    # Se señalizó el fin del bucle y se cerró el socket (ambos awaited).
+    assert fake.stop_ws_called is True
+    assert fake.closed is True
+    # El stop() sincrónico NO se usa cuando existen los métodos async.
+    assert fake.stopped is False
+
+
+@pytest.mark.asyncio
+async def test_stop_falls_back_to_sync_stop_when_no_async_closers() -> None:
+    """Doble sin ``stop_ws``/``close``: ``stop()`` sí se usa como último recurso."""
+    fake = _SyncOnlyStream()
+    streamer = MarketDataStreamer(factory=mock.Mock())
+    streamer._stream = fake
+    streamer._active = True
+
+    await streamer.stop()
+
     assert fake.stopped is True
+    assert streamer._active is False
+    assert streamer._stream is None
+
+
+@pytest.mark.asyncio
+async def test_stop_ws_failure_does_not_prevent_close() -> None:
+    """Un fallo al señalizar no impide cerrar el socket, y stop() no propaga."""
+    fake = _FailingStopWsStream()
+    streamer = MarketDataStreamer(factory=mock.Mock())
+    streamer._stream = fake
+    streamer._active = True
+
+    await streamer.stop()  # no debe lanzar
+
+    assert fake.stop_ws_called is True
+    # Pese al error anterior se intentó (y logró) el cierre real.
+    assert fake.closed is True
+    assert fake.stopped is False
+    assert streamer._stream is None
 
 
 @pytest.mark.asyncio

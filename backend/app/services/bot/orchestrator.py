@@ -89,6 +89,14 @@ __all__ = ["BotOrchestrator"]
 #: How many recent bars to keep in the rolling buffer fed to ``engine.generate``.
 DEFAULT_BAR_BUFFER = 200
 
+#: Seconds granted to the background stream task to finish by itself on
+#: :meth:`BotOrchestrator.stop` before it is cancelled. ``streamer.stop()`` has
+#: already signalled the underlying stream at that point, so the loop only needs
+#: to unwind and log its own shutdown; the window exists so that teardown is not
+#: interrupted mid-close (an interrupted close is what leaves the provider
+#: connection open and makes the next start hit its connection limit).
+STREAM_TASK_GRACE_PERIOD = 5
+
 #: Minimum number of buffered bars for windowed strategies to be able to decide.
 #: This is the window ``PredictiveStrategy`` needs with its default periods:
 #: ``max(long_period=20, rsi_period + 1 = 15) == 20``. Below this, predictive can
@@ -249,11 +257,18 @@ class BotOrchestrator:
         """Stop the pipeline and release the streamer, transitioning to ``STOPPED`` (R2.5).
 
         First clears the streamer's active flag and releases its connection via
-        ``streamer.stop()`` (which makes the background loop's ``while`` exit),
-        then cancels and awaits the background task launched in :meth:`start`
-        (if any) so no orphan task is left behind. Cancellation and any residual
-        error from the awaited task are swallowed and logged; the task reference
-        is reset to ``None``. Robust even if the task already finished.
+        ``streamer.stop()`` (which signals the underlying receive loop and closes
+        the socket, so the background loop's ``while`` exits), then lets the
+        background task launched in :meth:`start` finish **on its own** within
+        :data:`STREAM_TASK_GRACE_PERIOD` seconds. Letting it return instead of
+        cancelling it immediately is what allows the provider's teardown to run to
+        completion (the stream logs its own "stream stopped") rather than being
+        interrupted mid-close, which used to leave the connection dangling.
+
+        Only if the grace window expires is the task cancelled and awaited.
+        Cancellation and any residual error are swallowed and logged (a
+        ``CancelledError`` never escapes ``stop()``); the task reference is reset
+        to ``None``. Robust even if the task already finished.
 
         The in-progress forming bar is discarded so a new session never inherits
         a half-aggregated minute from the previous one, and the tick counter is
@@ -263,11 +278,31 @@ class BotOrchestrator:
 
         task = self._stream_task
         if task is not None:
-            if not task.done():
-                task.cancel()
             try:
-                await task
+                if task.done():
+                    # Already finished: await it only to surface/absorb the result.
+                    await task
+                else:
+                    try:
+                        # shield() so the wait_for timeout cancels the wait, not
+                        # the task itself; the real task is cancelled explicitly
+                        # below if it overruns the grace window.
+                        await asyncio.wait_for(
+                            asyncio.shield(task),
+                            timeout=STREAM_TASK_GRACE_PERIOD,
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            "Background stream task did not finish within %ss "
+                            "after releasing the stream (symbol=%s); cancelling",
+                            STREAM_TASK_GRACE_PERIOD,
+                            self._symbol,
+                        )
+                        task.cancel()
+                        await task
             except asyncio.CancelledError:
+                # Expected when we cancelled it (or it was already cancelled):
+                # cancellation must not propagate out of stop().
                 pass
             except Exception:  # noqa: BLE001 - teardown must not raise
                 logger.exception(
