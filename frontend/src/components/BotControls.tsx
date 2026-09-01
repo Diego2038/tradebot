@@ -4,6 +4,9 @@
 // onStart/onStop callbacks. Error text is provided by the parent (which translates
 // backend error_codes such as no_credentials / invalid_mode into clear messages);
 // BotControls only renders it (R3.6, R3.7).
+//
+// Presentation only: the status line is rendered as badges and the controls use
+// the shared button/select classes. The disabled conditions are untouched.
 import { useState } from "react";
 import type { BotStatus, Mode } from "../types";
 
@@ -31,68 +34,84 @@ export function BotControls(props: BotControlsProps): JSX.Element {
     status.mode ?? "random",
   );
 
+  const stateVariant =
+    status.state === "running" ? "badge--buy" : "badge--neutral";
+
   return (
-    <section aria-label="Bot controls" style={{ marginTop: "1.5rem" }}>
-      <h2>Control del bot</h2>
-
-      {/* Current Bot_Status: state / mode / symbol (R3.5). */}
-      <div style={{ marginBottom: "1rem" }}>
-        <span data-testid="bot-state">Estado: {status.state}</span>
-        {" · "}
-        <span data-testid="bot-mode">Modo: {status.mode}</span>
-        {" · "}
-        <span data-testid="bot-symbol">Símbolo: {status.symbol}</span>
+    <section aria-label="Bot controls" className="card">
+      <div className="card__header">
+        <h2 className="card__title">Control del bot</h2>
       </div>
 
-      {/* Mode selector between "random" and "predictive" (R3.1). */}
-      <div style={{ marginBottom: "1rem" }}>
-        <label htmlFor="bot-mode-select">Modo de operación</label>{" "}
-        <select
-          id="bot-mode-select"
-          aria-label="Modo de operación"
-          value={selectedMode}
-          disabled={busy || starting}
-          onChange={(e) => setSelectedMode(e.target.value as Mode)}
-        >
-          {MODES.map((mode) => (
-            <option key={mode} value={mode}>
-              {mode}
-            </option>
-          ))}
-        </select>
-      </div>
+      <div className="card__body">
+        {/* Current Bot_Status: state / mode / symbol (R3.5). */}
+        <div className="status-line">
+          <span data-testid="bot-state" className={`badge ${stateVariant}`}>
+            Estado: {status.state}
+          </span>
+          <span data-testid="bot-mode" className="badge badge--neutral">
+            Modo: {status.mode}
+          </span>
+          <span data-testid="bot-symbol" className="badge badge--neutral">
+            Símbolo: {status.symbol}
+          </span>
+        </div>
 
-      {/* Start / Stop — each button disables only while its own operation is in
-          flight (R3.8). Stop must never depend on Start's in-flight state so a
-          hung start request can never block the user from stopping the bot
-          (product principle: reversibility and control). */}
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <button
-          type="button"
-          disabled={busy || starting}
-          onClick={() => {
-            void onStart(selectedMode);
-          }}
-        >
-          Start
-        </button>
-        <button
-          type="button"
-          disabled={stopping}
-          onClick={() => {
-            void onStop();
-          }}
-        >
-          Stop
-        </button>
-      </div>
+        {/* Mode selector between "random" and "predictive" (R3.1). */}
+        <div className="field">
+          <label className="field__label" htmlFor="bot-mode-select">
+            Modo de operación
+          </label>
+          <select
+            id="bot-mode-select"
+            className="select"
+            aria-label="Modo de operación"
+            value={selectedMode}
+            disabled={busy || starting}
+            onChange={(e) => setSelectedMode(e.target.value as Mode)}
+          >
+            {MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {mode}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      {/* Error message provided by the parent (R3.6, R3.7). */}
-      {error && (
-        <p role="alert" style={{ color: "#842029", marginTop: "1rem" }}>
-          {error}
-        </p>
-      )}
+        {/* Start / Stop — each button disables only while its own operation is in
+            flight (R3.8). Stop must never depend on Start's in-flight state so a
+            hung start request can never block the user from stopping the bot
+            (product principle: reversibility and control). */}
+        <div className="form-actions">
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={busy || starting}
+            onClick={() => {
+              void onStart(selectedMode);
+            }}
+          >
+            Start
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            disabled={stopping}
+            onClick={() => {
+              void onStop();
+            }}
+          >
+            Stop
+          </button>
+        </div>
+
+        {/* Error message provided by the parent (R3.6, R3.7). */}
+        {error && (
+          <p role="alert" className="alert">
+            {error}
+          </p>
+        )}
+      </div>
     </section>
   );
 }

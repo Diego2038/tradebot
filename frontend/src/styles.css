@@ -1,0 +1,641 @@
+/* TradeBot — sistema de diseño (solo presentación).
+ *
+ * Tema claro, tarjetas blancas con bordes suaves, mucho espacio en blanco y un
+ * acento ámbar/dorado. Todas las clases aquí son puramente visuales: ningún
+ * componente depende de ellas para su lógica.
+ *
+ * Se importa una única vez desde `main.tsx`.
+ */
+
+/* --- Tokens ---------------------------------------------------------------- */
+
+:root {
+  /* Superficies */
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #fafbfc;
+
+  /* Texto */
+  --text: #12161c;
+  --text-muted: #6b7280;
+
+  /* Bordes y separadores */
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+
+  /* Acento (ámbar/dorado, como la referencia) */
+  --accent: #f0b429;
+  --accent-soft: #fdf3d8;
+  --accent-ink: #7a5310;
+
+  /* Semánticos */
+  --buy: #16a34a;
+  --buy-soft: #e7f6ec;
+  --sell: #dc2626;
+  --sell-soft: #fdeaea;
+  --warn: #b45309;
+  --warn-soft: #fef3c7;
+  --danger: #b42318;
+  --danger-soft: #fdeaea;
+  --neutral-soft: #eef1f4;
+
+  /* Formas */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+
+  /* Sombras muy suaves */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
+
+  /* Espaciados */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  /* Tipografía */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* --- Reset ligero --------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+/* --- Layout --------------------------------------------------------------- */
+
+.app-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.topbar__spacer {
+  flex: 1 1 auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.brand__mark {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, var(--accent), #d99b0f);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.grid--2col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.grid--3col {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .grid--2col,
+  .grid--3col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell {
+    padding: var(--space-4) var(--space-3) var(--space-5);
+  }
+}
+
+/* --- Tarjetas ------------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.card--accent {
+  border-top: 2px solid var(--accent);
+}
+
+.card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-4) var(--space-5) 0;
+}
+
+.card__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 0;
+}
+
+.card__subtitle {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
+.card__body {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.card__spacer {
+  flex: 1 1 auto;
+}
+
+.card__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+/* A <form> inside a card body behaves like the body itself: stacked blocks. */
+.card__body-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.backtest-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+.section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* --- Pills / badges ------------------------------------------------------- */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--neutral-soft);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pill--paper {
+  background: var(--accent-soft);
+  border-color: #f5e0a8;
+  color: var(--accent-ink);
+}
+
+.pill--ok {
+  background: var(--buy-soft);
+  border-color: #bfe6cc;
+  color: #12703a;
+}
+
+.pill--warn {
+  background: var(--warn-soft);
+  border-color: #f5e0a8;
+  color: var(--warn);
+}
+
+.pill--danger {
+  background: var(--danger-soft);
+  border-color: #f4c7c3;
+  color: var(--danger);
+}
+
+.pill__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.35;
+  background: var(--neutral-soft);
+  color: #374151;
+  white-space: nowrap;
+}
+
+.badge--buy {
+  background: var(--buy-soft);
+  color: #12703a;
+}
+
+.badge--sell {
+  background: var(--sell-soft);
+  color: #a71d1d;
+}
+
+.badge--error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.badge--neutral {
+  background: var(--neutral-soft);
+  color: #374151;
+}
+
+/* --- KPIs ---------------------------------------------------------------- */
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.kpi__label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.kpi__value {
+  font-size: 1.25rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.kpi--hero .kpi__value {
+  font-size: 2rem;
+}
+
+/* Las etiquetas de texto original viven dentro del valor; este modificador las
+   atenúa visualmente sin alterar el texto. */
+.kpi__value .kpi__inline-label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  display: block;
+}
+
+/* --- Formularios --------------------------------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.field__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.input,
+.select {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.input:focus-visible,
+.select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(240, 180, 41, 0.22);
+}
+
+.input:disabled,
+.select:disabled {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #9aa3ae 50%),
+    linear-gradient(135deg, #9aa3ae 50%, transparent 50%);
+  background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 1.75rem;
+}
+
+.help-text {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* --- Botones ------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease,
+    transform 80ms ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(240, 180, 41, 0.28);
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: #dda617;
+  color: #251900;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: #e7ab21;
+}
+
+.btn--secondary {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: #374151;
+}
+
+.btn--danger {
+  background: var(--surface);
+  border-color: #f0c2be;
+  color: var(--danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+.btn--sm {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* --- Tablas -------------------------------------------------------------- */
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.table {
+  width: 100%;
+  font-size: 0.8125rem;
+}
+
+.table thead th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover td {
+  background: var(--surface-2);
+}
+
+.table .cell--muted {
+  color: var(--text-muted);
+}
+
+.table .cell--num {
+  text-align: right;
+}
+
+/* --- Estados / avisos ---------------------------------------------------- */
+
+.empty-state {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  padding: var(--space-4);
+  text-align: center;
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  margin: 0;
+}
+
+.alert {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid #f4c7c3;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
+.status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.busy-text {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
+/* --- Gráficas ------------------------------------------------------------ */
+
+.chart {
+  width: 100%;
+  height: 280px;
+}
+
+.chart--sm {
+  height: 220px;
+}
+
+.chart-tooltip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 0.5rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-tooltip__title {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.2rem;
+}
+
+.chart-tooltip__row {
+  color: var(--text-muted);
+}
+
+.chart-tooltip__row strong {
+  color: var(--text);
+  font-weight: 600;
+}

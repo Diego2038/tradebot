@@ -248,40 +248,44 @@ export function App(): JSX.Element {
     }
   }
 
+  // Layout only: the composition below wires the exact same props as before —
+  // the extra elements are containers and class names for presentation.
   return (
-    <main
-      style={{
-        fontFamily: "system-ui, sans-serif",
-        maxWidth: 720,
-        margin: "0 auto",
-        padding: "2rem",
-      }}
-    >
-      {/* Persistent paper-trading indicator: rendered unconditionally (R5.1). */}
-      <PaperTradingBanner />
+    <main className="app-shell">
+      <header className="topbar">
+        <h1 className="brand">
+          <span className="brand__mark" aria-hidden="true" />
+          TradeBot
+        </h1>
 
-      <h1>TradeBot</h1>
+        <span className="topbar__spacer" />
 
-      <ConnectionStatus status={connectionStatus} />
+        {/* Persistent paper-trading indicator: rendered unconditionally (R5.1). */}
+        <PaperTradingBanner />
 
-      <CredentialsForm
-        metadata={credentialMetadata}
-        onSave={onSave}
-        onDelete={onDelete}
-        error={credentialsError}
-      />
+        <ConnectionStatus status={connectionStatus} />
+      </header>
 
       <AccountPanel account={account} error={accountError} />
 
-      <BotControls
-        status={botStatus}
-        busy={busy}
-        starting={starting}
-        stopping={stopping}
-        onStart={onStart}
-        onStop={onStop}
-        error={botError}
-      />
+      <div className="grid grid--2col">
+        <BotControls
+          status={botStatus}
+          busy={busy}
+          starting={starting}
+          stopping={stopping}
+          onStart={onStart}
+          onStop={onStop}
+          error={botError}
+        />
+
+        <CredentialsForm
+          metadata={credentialMetadata}
+          onSave={onSave}
+          onDelete={onDelete}
+          error={credentialsError}
+        />
+      </div>
 
       <BacktestPanel
         onRun={onRunBacktest}

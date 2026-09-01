@@ -4,6 +4,10 @@
 // optional seed) into a BacktestRunRequest and forwards user intent through the
 // onRun callback. Metrics, the trades table and any error text are handed down by
 // the parent (App), which translates backend error_codes into clear messages.
+//
+// Presentation only: the form is laid out on a responsive grid, the metrics are
+// KPI tiles and the equity curve is drawn above the trades table. Every test id,
+// label and value text is unchanged.
 import { useState } from "react";
 import type {
   BacktestResult,
@@ -11,6 +15,7 @@ import type {
   Mode,
   Timeframe,
 } from "../types";
+import { EquityChart } from "./EquityChart";
 
 export interface BacktestPanelProps {
   onRun: (req: BacktestRunRequest) => Promise<void>;
@@ -26,6 +31,18 @@ const TIMEFRAMES: Timeframe[] = ["1Min", "5Min", "15Min", "1Hour", "1Day"];
 // (same pattern as Dashboard.tsx).
 function cell(value: string | null): string {
   return value == null || value === "" ? "—" : value;
+}
+
+// Badge colour variant for a trade side; unknown values stay neutral.
+function sideVariant(value: string): string {
+  const normalized = value.toUpperCase();
+  if (normalized === "BUY") {
+    return "badge--buy";
+  }
+  if (normalized === "SELL") {
+    return "badge--sell";
+  }
+  return "badge--neutral";
 }
 
 /**
@@ -74,205 +91,280 @@ export function BacktestPanel(props: BacktestPanelProps): JSX.Element {
   };
 
   return (
-    <section aria-label="Backtest" style={{ marginTop: "1.5rem" }}>
-      <h2>Backtest</h2>
-      <p style={{ color: "#6c757d", marginTop: "-0.5rem" }}>
-        Simula una estrategia sobre datos históricos de BTC/USD sin operar en
-        real.
-      </p>
-
-      <form onSubmit={handleSubmit}>
-        {/* Mode selector between "random" and "predictive". */}
-        <div style={{ marginBottom: "0.75rem" }}>
-          <label htmlFor="backtest-mode-select">Modo</label>{" "}
-          <select
-            id="backtest-mode-select"
-            aria-label="Modo de backtest"
-            value={mode}
-            disabled={busy}
-            onChange={(e) => setMode(e.target.value as Mode)}
-          >
-            {MODES.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Timeframe selector (5 valid values). */}
-        <div style={{ marginBottom: "0.75rem" }}>
-          <label htmlFor="backtest-timeframe-select">Timeframe</label>{" "}
-          <select
-            id="backtest-timeframe-select"
-            aria-label="Timeframe"
-            value={timeframe}
-            disabled={busy}
-            onChange={(e) => setTimeframe(e.target.value as Timeframe)}
-          >
-            {TIMEFRAMES.map((tf) => (
-              <option key={tf} value={tf}>
-                {tf}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Date range: datetime-local inputs, normalized to ISO 8601 UTC on submit. */}
-        <div style={{ marginBottom: "0.75rem" }}>
-          <label htmlFor="backtest-start">Inicio</label>{" "}
-          <input
-            id="backtest-start"
-            type="datetime-local"
-            value={start}
-            disabled={busy}
-            onChange={(e) => setStart(e.target.value)}
-          />
-        </div>
-
-        <div style={{ marginBottom: "0.75rem" }}>
-          <label htmlFor="backtest-end">Fin</label>{" "}
-          <input
-            id="backtest-end"
-            type="datetime-local"
-            value={end}
-            disabled={busy}
-            onChange={(e) => setEnd(e.target.value)}
-          />
-        </div>
-
-        {/* Optional position size: drives how meaningful the percentages are. */}
-        <div style={{ marginBottom: "0.75rem" }}>
-          <label htmlFor="backtest-qty">Tamaño de posición (BTC)</label>{" "}
-          <input
-            id="backtest-qty"
-            type="number"
-            step="0.001"
-            min="0"
-            value={qtyStr}
-            disabled={busy}
-            onChange={(e) => setQtyStr(e.target.value)}
-          />
-          <p
-            style={{
-              color: "#6c757d",
-              fontSize: "0.85rem",
-              margin: "0.25rem 0 0",
-            }}
-          >
-            Por defecto 0.001 BTC (~0,08% del capital simulado de 100.000), por lo
-            que los porcentajes salen muy pequeños. Un valor mayor (p.ej. 1) da
-            métricas con significado.
+    <section aria-label="Backtest" className="card">
+      <div className="card__header">
+        <div className="card__heading">
+          <h2 className="card__title">Backtest</h2>
+          <p className="card__subtitle">
+            Simula una estrategia sobre datos históricos de BTC/USD sin operar
+            en real.
           </p>
         </div>
+      </div>
 
-        {/* Optional seed for deterministic reproducibility. */}
-        <div style={{ marginBottom: "0.75rem" }}>
-          <label htmlFor="backtest-seed">Seed (opcional)</label>{" "}
-          <input
-            id="backtest-seed"
-            type="number"
-            value={seed}
-            disabled={busy}
-            onChange={(e) => setSeed(e.target.value)}
-          />
-        </div>
-
-        <button type="submit" aria-label="Ejecutar backtest" disabled={busy}>
-          Ejecutar backtest
-        </button>
-      </form>
-
-      {/* Discreet in-flight indicator. */}
-      {busy && (
-        <p data-testid="backtest-busy" style={{ color: "#6c757d" }}>
-          Ejecutando backtest…
-        </p>
-      )}
-
-      {/* Metrics summary + trades table when a result is available. */}
-      {result && (
-        <div data-testid="backtest-result" style={{ marginTop: "1rem" }}>
-          <div style={{ marginBottom: "1rem" }}>
-            <span data-testid="bt-total-return">
-              Retorno total: {result.total_return}
-            </span>
-            {" · "}
-            <span data-testid="bt-trade-count">
-              Operaciones: {result.trade_count}
-            </span>
-            {" · "}
-            <span data-testid="bt-win-rate">Win rate: {result.win_rate}</span>
-            {" · "}
-            <span data-testid="bt-max-drawdown">
-              Drawdown máx.: {result.max_drawdown}
-            </span>
-            {" · "}
-            <span data-testid="bt-bars-evaluated">
-              Barras evaluadas: {result.bars_evaluated}
-            </span>
-          </div>
-
-          {/* Absolute figures: the same result read in money instead of ratios. */}
-          <div style={{ marginBottom: "1rem" }}>
-            <span data-testid="bt-net-profit">
-              P&amp;L neto: {result.net_profit}
-            </span>
-            {" · "}
-            <span data-testid="bt-final-equity">
-              Equity final: {result.final_equity}
-            </span>
-            {" · "}
-            <span data-testid="bt-starting-equity">
-              Equity inicial: {result.starting_equity}
-            </span>
-          </div>
-
-          {result.trades.length === 0 ? (
-            // Discreet empty state.
-            <p data-testid="bt-trades-empty" style={{ color: "#6c757d" }}>
-              Sin operaciones simuladas
-            </p>
-          ) : (
-            <table data-testid="bt-trades-table" style={{ width: "100%" }}>
-              <thead>
-                <tr>
-                  <th scope="col">Lado</th>
-                  <th scope="col">Cantidad</th>
-                  <th scope="col">Precio</th>
-                  <th scope="col">Timestamp</th>
-                  <th scope="col">P&amp;L</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.trades.map((trade, index) => (
-                  <tr
-                    key={`${trade.timestamp}-${index}`}
-                    data-testid="bt-trade-row"
-                  >
-                    <td data-testid="bt-trade-side">{cell(trade.side)}</td>
-                    <td data-testid="bt-trade-qty">{cell(trade.qty)}</td>
-                    <td data-testid="bt-trade-price">{cell(trade.price)}</td>
-                    <td data-testid="bt-trade-timestamp">
-                      {cell(trade.timestamp)}
-                    </td>
-                    <td data-testid="bt-trade-pnl">
-                      {cell(trade.realized_profit)}
-                    </td>
-                  </tr>
+      <div className="card__body">
+        <form onSubmit={handleSubmit} className="card__body-form">
+          <div className="grid grid--3col">
+            {/* Mode selector between "random" and "predictive". */}
+            <div className="field">
+              <label className="field__label" htmlFor="backtest-mode-select">
+                Modo
+              </label>
+              <select
+                id="backtest-mode-select"
+                className="select"
+                aria-label="Modo de backtest"
+                value={mode}
+                disabled={busy}
+                onChange={(e) => setMode(e.target.value as Mode)}
+              >
+                {MODES.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
                 ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+              </select>
+            </div>
 
-      {/* Error message provided by the parent. */}
-      {error && (
-        <p role="alert" style={{ color: "#842029", marginTop: "1rem" }}>
-          {error}
-        </p>
-      )}
+            {/* Timeframe selector (5 valid values). */}
+            <div className="field">
+              <label
+                className="field__label"
+                htmlFor="backtest-timeframe-select"
+              >
+                Timeframe
+              </label>
+              <select
+                id="backtest-timeframe-select"
+                className="select"
+                aria-label="Timeframe"
+                value={timeframe}
+                disabled={busy}
+                onChange={(e) => setTimeframe(e.target.value as Timeframe)}
+              >
+                {TIMEFRAMES.map((tf) => (
+                  <option key={tf} value={tf}>
+                    {tf}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Optional seed for deterministic reproducibility. */}
+            <div className="field">
+              <label className="field__label" htmlFor="backtest-seed">
+                Seed (opcional)
+              </label>
+              <input
+                id="backtest-seed"
+                className="input"
+                type="number"
+                value={seed}
+                disabled={busy}
+                onChange={(e) => setSeed(e.target.value)}
+              />
+            </div>
+
+            {/* Date range: datetime-local inputs, normalized to ISO 8601 UTC on submit. */}
+            <div className="field">
+              <label className="field__label" htmlFor="backtest-start">
+                Inicio
+              </label>
+              <input
+                id="backtest-start"
+                className="input"
+                type="datetime-local"
+                value={start}
+                disabled={busy}
+                onChange={(e) => setStart(e.target.value)}
+              />
+            </div>
+
+            <div className="field">
+              <label className="field__label" htmlFor="backtest-end">
+                Fin
+              </label>
+              <input
+                id="backtest-end"
+                className="input"
+                type="datetime-local"
+                value={end}
+                disabled={busy}
+                onChange={(e) => setEnd(e.target.value)}
+              />
+            </div>
+
+            {/* Optional position size: drives how meaningful the percentages are. */}
+            <div className="field">
+              <label className="field__label" htmlFor="backtest-qty">
+                Tamaño de posición (BTC)
+              </label>
+              <input
+                id="backtest-qty"
+                className="input"
+                type="number"
+                step="0.001"
+                min="0"
+                value={qtyStr}
+                disabled={busy}
+                onChange={(e) => setQtyStr(e.target.value)}
+              />
+              <p className="help-text">
+                Por defecto 0.001 BTC (~0,08% del capital simulado de 100.000),
+                por lo que los porcentajes salen muy pequeños. Un valor mayor
+                (p.ej. 1) da métricas con significado.
+              </p>
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button
+              type="submit"
+              className="btn btn--primary"
+              aria-label="Ejecutar backtest"
+              disabled={busy}
+            >
+              Ejecutar backtest
+            </button>
+          </div>
+        </form>
+
+        {/* Discreet in-flight indicator. */}
+        {busy && (
+          <p data-testid="backtest-busy" className="busy-text">
+            Ejecutando backtest…
+          </p>
+        )}
+
+        {/* Metrics summary + trades table when a result is available. */}
+        {result && (
+          <div data-testid="backtest-result" className="backtest-result">
+            <div className="kpi-row">
+              <div className="kpi">
+                <span data-testid="bt-total-return" className="kpi__value">
+                  <span className="kpi__inline-label">Retorno total: </span>
+                  {result.total_return}
+                </span>
+              </div>
+              <div className="kpi">
+                <span data-testid="bt-trade-count" className="kpi__value">
+                  <span className="kpi__inline-label">Operaciones: </span>
+                  {result.trade_count}
+                </span>
+              </div>
+              <div className="kpi">
+                <span data-testid="bt-win-rate" className="kpi__value">
+                  <span className="kpi__inline-label">Win rate: </span>
+                  {result.win_rate}
+                </span>
+              </div>
+              <div className="kpi">
+                <span data-testid="bt-max-drawdown" className="kpi__value">
+                  <span className="kpi__inline-label">Drawdown máx.: </span>
+                  {result.max_drawdown}
+                </span>
+              </div>
+              <div className="kpi">
+                <span data-testid="bt-bars-evaluated" className="kpi__value">
+                  <span className="kpi__inline-label">Barras evaluadas: </span>
+                  {result.bars_evaluated}
+                </span>
+              </div>
+            </div>
+
+            {/* Absolute figures: the same result read in money instead of ratios. */}
+            <div className="kpi-row">
+              <div className="kpi">
+                <span data-testid="bt-net-profit" className="kpi__value">
+                  <span className="kpi__inline-label">P&amp;L neto: </span>
+                  {result.net_profit}
+                </span>
+              </div>
+              <div className="kpi">
+                <span data-testid="bt-final-equity" className="kpi__value">
+                  <span className="kpi__inline-label">Equity final: </span>
+                  {result.final_equity}
+                </span>
+              </div>
+              <div className="kpi">
+                <span data-testid="bt-starting-equity" className="kpi__value">
+                  <span className="kpi__inline-label">Equity inicial: </span>
+                  {result.starting_equity}
+                </span>
+              </div>
+            </div>
+
+            {/* Equity curve for this run (presentation of the same trades). */}
+            <h3 className="section-title">Curva de equity</h3>
+            <EquityChart result={result} />
+
+            <h3 className="section-title">Operaciones simuladas</h3>
+
+            {result.trades.length === 0 ? (
+              // Discreet empty state.
+              <p data-testid="bt-trades-empty" className="empty-state">
+                Sin operaciones simuladas
+              </p>
+            ) : (
+              <div className="table-wrap">
+                <table data-testid="bt-trades-table" className="table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Lado</th>
+                      <th scope="col">Cantidad</th>
+                      <th scope="col">Precio</th>
+                      <th scope="col">Timestamp</th>
+                      <th scope="col">P&amp;L</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.trades.map((trade, index) => (
+                      <tr
+                        key={`${trade.timestamp}-${index}`}
+                        data-testid="bt-trade-row"
+                      >
+                        <td data-testid="bt-trade-side">
+                          {cell(trade.side) === "—" ? (
+                            <span className="cell--muted">—</span>
+                          ) : (
+                            <span
+                              className={`badge ${sideVariant(cell(trade.side))}`}
+                            >
+                              {cell(trade.side)}
+                            </span>
+                          )}
+                        </td>
+                        <td data-testid="bt-trade-qty" className="cell--num">
+                          {cell(trade.qty)}
+                        </td>
+                        <td data-testid="bt-trade-price" className="cell--num">
+                          {cell(trade.price)}
+                        </td>
+                        <td
+                          data-testid="bt-trade-timestamp"
+                          className="cell--muted"
+                        >
+                          {cell(trade.timestamp)}
+                        </td>
+                        <td data-testid="bt-trade-pnl" className="cell--num">
+                          {cell(trade.realized_profit)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Error message provided by the parent. */}
+        {error && (
+          <p role="alert" className="alert">
+            {error}
+          </p>
+        )}
+      </div>
     </section>
   );
 }
