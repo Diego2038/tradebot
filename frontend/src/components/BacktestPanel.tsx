@@ -54,6 +54,7 @@ export function BacktestPanel(props: BacktestPanelProps): JSX.Element {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [seed, setSeed] = useState("");
+  const [qtyStr, setQtyStr] = useState("");
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
@@ -66,6 +67,8 @@ export function BacktestPanel(props: BacktestPanelProps): JSX.Element {
       // Optional seed: only send a number when provided; otherwise null lets the
       // backend pick its own default.
       seed: seed.trim() === "" ? null : Number(seed),
+      // Optional position size: null means "use the engine default" (0.001 BTC).
+      qty: qtyStr.trim() === "" ? null : Number(qtyStr),
     };
     void onRun(req);
   };
@@ -138,6 +141,31 @@ export function BacktestPanel(props: BacktestPanelProps): JSX.Element {
           />
         </div>
 
+        {/* Optional position size: drives how meaningful the percentages are. */}
+        <div style={{ marginBottom: "0.75rem" }}>
+          <label htmlFor="backtest-qty">Tamaño de posición (BTC)</label>{" "}
+          <input
+            id="backtest-qty"
+            type="number"
+            step="0.001"
+            min="0"
+            value={qtyStr}
+            disabled={busy}
+            onChange={(e) => setQtyStr(e.target.value)}
+          />
+          <p
+            style={{
+              color: "#6c757d",
+              fontSize: "0.85rem",
+              margin: "0.25rem 0 0",
+            }}
+          >
+            Por defecto 0.001 BTC (~0,08% del capital simulado de 100.000), por lo
+            que los porcentajes salen muy pequeños. Un valor mayor (p.ej. 1) da
+            métricas con significado.
+          </p>
+        </div>
+
         {/* Optional seed for deterministic reproducibility. */}
         <div style={{ marginBottom: "0.75rem" }}>
           <label htmlFor="backtest-seed">Seed (opcional)</label>{" "}
@@ -182,6 +210,21 @@ export function BacktestPanel(props: BacktestPanelProps): JSX.Element {
             {" · "}
             <span data-testid="bt-bars-evaluated">
               Barras evaluadas: {result.bars_evaluated}
+            </span>
+          </div>
+
+          {/* Absolute figures: the same result read in money instead of ratios. */}
+          <div style={{ marginBottom: "1rem" }}>
+            <span data-testid="bt-net-profit">
+              P&amp;L neto: {result.net_profit}
+            </span>
+            {" · "}
+            <span data-testid="bt-final-equity">
+              Equity final: {result.final_equity}
+            </span>
+            {" · "}
+            <span data-testid="bt-starting-equity">
+              Equity inicial: {result.starting_equity}
             </span>
           </div>
 

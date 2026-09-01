@@ -48,6 +48,12 @@ export interface BacktestRunRequest {
   symbol?: string; // default "BTC/USD"
   timeframe?: Timeframe; // default "1Min"
   seed?: number | null;
+  /**
+   * Position size per simulated trade, in units of the asset (BTC). Omitted/null
+   * uses the engine default (0.001 BTC), which is only ~0.08% of the 100,000
+   * simulated capital, so percentage metrics come out tiny. Must be > 0.
+   */
+  qty?: number | null;
 }
 
 /** A single simulated trade returned by the backtest engine. */
@@ -66,6 +72,10 @@ export interface BacktestResult {
   trade_count: number;
   win_rate: string;
   max_drawdown: string;
+  /** Absolute derived figures so the result is readable at a glance. */
+  starting_equity: string;
+  net_profit: string;
+  final_equity: string;
   trades: SimulatedTrade[];
   bars_evaluated: number;
 }

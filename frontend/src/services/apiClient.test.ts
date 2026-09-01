@@ -99,6 +99,9 @@ describe("ApiClient", () => {
       trade_count: 1,
       win_rate: "1.0000",
       max_drawdown: "0.0000",
+      starting_equity: "100000",
+      net_profit: "10.00",
+      final_equity: "100010.00",
       bars_evaluated: 60,
       trades: [
         {

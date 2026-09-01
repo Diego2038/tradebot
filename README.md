@@ -241,7 +241,9 @@ Once the app is running and you have your paper API Key/Secret, follow these ste
 A **backtest** simulates a strategy over historical BTC/USD data **without trading for real** — it replays past bars in order and simulates the trades the strategy would have taken.
 
 - In the **Backtest** panel, choose the **mode** (`random` or `predictive`), a **timeframe** (`1Min`, `5Min`, `15Min`, `1Hour`, `1Day`), and a **date range** (start and end). Optionally set a **seed**.
-- Press **Ejecutar backtest** (Run backtest). When it finishes, the panel shows the performance metrics — **total return**, **number of trades**, **win rate** and **maximum drawdown** — plus the number of **bars evaluated** and the list of simulated trades.
+- You can also set the **position size** (`qty`, in BTC) used on every simulated trade. This matters for readability: with the default (0.001 BTC) the notional per trade is only ~0.08% of the 100,000 simulated capital, so the percentages come out microscopic. Raising it (for example `1`) yields metrics with actual meaning.
+- Press **Ejecutar backtest** (Run backtest). When it finishes, the panel shows the performance metrics — **total return**, **number of trades**, **win rate** and **maximum drawdown** — plus the absolute figures **net P&L**, **starting equity** and **final equity**, the number of **bars evaluated** and the list of simulated trades.
+- `trade_count` counts **completed round trips** (buy then sell), the only ones that move equity. The `trades` list holds **every BUY/SELL signal executed**, so it can be longer: a sell with no open position is recorded but produces no P&L.
 - The backtest is **deterministic**: with the same seed and date range it always produces the same result, which makes runs reproducible and comparable.
 
 > 🔁 **After changing frontend code**, rebuild its container so nginx serves the new build:
@@ -638,7 +640,9 @@ Con la app levantada y tu API Key/Secret de paper a mano, sigue estos pasos en l
 Un **backtest** simula una estrategia sobre datos históricos de BTC/USD **sin operar en real**: reproduce las barras pasadas en orden y simula las operaciones que la estrategia habría tomado.
 
 - En el panel de **Backtest**, elige el **modo** (`random` o `predictive`), un **timeframe** (`1Min`, `5Min`, `15Min`, `1Hour`, `1Day`) y un **rango de fechas** (inicio y fin). Opcionalmente fija una **seed**.
-- Pulsa **Ejecutar backtest**. Al terminar, el panel muestra las métricas de rendimiento — **retorno total**, **número de operaciones**, **win rate** y **drawdown máximo** — además del número de **barras evaluadas** y la lista de operaciones simuladas.
+- También puedes indicar el **tamaño de posición** (`qty`, en BTC) usado en cada operación simulada. Importa para poder leer los resultados: con el valor por defecto (0.001 BTC) el nocional por operación es solo ~0,08% del capital simulado de 100.000, así que los porcentajes salen diminutos. Subirlo (por ejemplo a `1`) da métricas con significado.
+- Pulsa **Ejecutar backtest**. Al terminar, el panel muestra las métricas de rendimiento — **retorno total**, **número de operaciones**, **win rate** y **drawdown máximo** — además de las cifras absolutas **P&L neto**, **equity inicial** y **equity final**, el número de **barras evaluadas** y la lista de operaciones simuladas.
+- `trade_count` cuenta las **operaciones completas de ida y vuelta** (compra y posterior venta), las únicas que mueven la equity. La lista `trades` recoge **todas las señales BUY/SELL ejecutadas**, por lo que puede ser más larga: una venta sin posición abierta se registra pero no genera P&L.
 - El backtest es **determinista**: con la misma seed y el mismo rango de fechas produce siempre el mismo resultado, lo que hace las ejecuciones reproducibles y comparables.
 
 > 🔁 **Tras cambiar código del frontend**, reconstruye su contenedor para que nginx sirva el nuevo build:

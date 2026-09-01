@@ -9,6 +9,9 @@ const sampleResult: BacktestResult = {
   trade_count: 2,
   win_rate: "0.5000",
   max_drawdown: "0.0500",
+  starting_equity: "100000",
+  net_profit: "1234.00",
+  final_equity: "101234.00",
   bars_evaluated: 1440,
   trades: [
     {
@@ -55,6 +58,31 @@ describe("BacktestPanel", () => {
     expect(req.symbol).toBe("BTC/USD");
   });
 
+  it("(a2) a typed position size is forwarded as a numeric qty", async () => {
+    const user = userEvent.setup();
+    const onRun = vi.fn().mockResolvedValue(undefined);
+
+    render(<BacktestPanel onRun={onRun} result={null} busy={false} />);
+
+    await user.type(screen.getByLabelText("Tamaño de posición (BTC)"), "1");
+    await user.click(screen.getByRole("button", { name: "Ejecutar backtest" }));
+
+    expect(onRun).toHaveBeenCalledTimes(1);
+    expect(onRun.mock.calls[0][0].qty).toBe(1);
+  });
+
+  it("(a3) leaving the position size empty sends qty as null (engine default)", async () => {
+    const user = userEvent.setup();
+    const onRun = vi.fn().mockResolvedValue(undefined);
+
+    render(<BacktestPanel onRun={onRun} result={null} busy={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Ejecutar backtest" }));
+
+    expect(onRun).toHaveBeenCalledTimes(1);
+    expect(onRun.mock.calls[0][0].qty).toBeNull();
+  });
+
   it("(b) with busy=true the 'Ejecutar backtest' button is disabled", () => {
     render(
       <BacktestPanel
@@ -83,6 +111,11 @@ describe("BacktestPanel", () => {
     expect(screen.getByTestId("bt-win-rate")).toHaveTextContent("0.5000");
     expect(screen.getByTestId("bt-max-drawdown")).toHaveTextContent("0.0500");
     expect(screen.getByTestId("bt-bars-evaluated")).toHaveTextContent("1440");
+
+    // Absolute figures, so the result is readable without decoding ratios.
+    expect(screen.getByTestId("bt-net-profit")).toHaveTextContent("1234.00");
+    expect(screen.getByTestId("bt-final-equity")).toHaveTextContent("101234.00");
+    expect(screen.getByTestId("bt-starting-equity")).toHaveTextContent("100000");
 
     expect(screen.getByTestId("bt-trades-table")).toBeInTheDocument();
     const rows = screen.getAllByTestId("bt-trade-row");

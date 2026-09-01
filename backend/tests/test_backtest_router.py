@@ -168,6 +168,9 @@ def test_backtest_happy_path_returns_200_with_result(client):
         "trade_count",
         "win_rate",
         "max_drawdown",
+        "starting_equity",
+        "net_profit",
+        "final_equity",
         "trades",
         "bars_evaluated",
     }
@@ -180,6 +183,26 @@ def test_backtest_happy_path_returns_200_with_result(client):
     assert Decimal("0") <= Decimal(body["max_drawdown"]) <= Decimal("1")
 
 
+def test_backtest_absolute_figures_are_coherent(client):
+    """(a'') las cifras absolutas derivadas son coherentes entre sí.
+
+    ``starting_equity`` es el capital simulado fijo (100000) y
+    ``final_equity == starting_equity + net_profit``, de modo que el usuario puede
+    leer el resultado en dinero sin depender de porcentajes diminutos.
+    """
+    bars = _sample_bars()
+    with mock.patch.object(HistoricalDataService, "get_bars", return_value=bars):
+        resp = client.post("/backtest", json=_body(mode="random", seed=42))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    starting = Decimal(body["starting_equity"])
+    net = Decimal(body["net_profit"])
+    final = Decimal(body["final_equity"])
+    assert starting == Decimal("100000")
+    assert final == starting + net
+
+
 def test_backtest_reproducible_with_fixed_seed(client):
     """(a') misma seed -> resultado idéntico (reproducibilidad, R4.2)."""
     bars = _sample_bars()
@@ -190,6 +213,53 @@ def test_backtest_reproducible_with_fixed_seed(client):
     assert first.status_code == 200
     assert second.status_code == 200
     assert first.json() == second.json()
+
+
+def test_backtest_larger_qty_scales_net_profit(client):
+    """(a''') un ``qty`` mayor produce un P&L proporcionalmente mayor.
+
+    Sobre EL MISMO dataset y con la MISMA seed la estrategia emite exactamente la
+    misma secuencia de señales, así que el P&L realizado escala linealmente con el
+    tamaño de posición: ``qty=1`` (1000x el default de 0.001) debe dar un
+    ``net_profit`` exactamente 1000 veces mayor. Esto es lo que vuelve las métricas
+    interpretables: con el default el nocional es ~0,08% del capital simulado.
+    """
+    bars = _sample_bars()
+    with mock.patch.object(HistoricalDataService, "get_bars", return_value=bars):
+        default_resp = client.post("/backtest", json=_body(mode="random", seed=42))
+        big_resp = client.post(
+            "/backtest", json=_body(mode="random", seed=42, qty="1")
+        )
+
+    assert default_resp.status_code == 200
+    assert big_resp.status_code == 200
+    default_body = default_resp.json()
+    big_body = big_resp.json()
+
+    # Misma seed + mismo dataset -> misma secuencia de señales y mismos round trips.
+    assert big_body["trade_count"] == default_body["trade_count"]
+    assert len(big_body["trades"]) == len(default_body["trades"])
+
+    default_net = Decimal(default_body["net_profit"])
+    big_net = Decimal(big_body["net_profit"])
+    # El dataset elegido sí cierra round trips: si no, la comparación sería vacía.
+    assert default_net != Decimal("0")
+    assert big_net == default_net * Decimal("1000")
+    assert abs(big_net) > abs(default_net)
+    # El qty pedido se refleja en cada operación simulada.
+    assert all(Decimal(trade["qty"]) == Decimal("1") for trade in big_body["trades"])
+    # Y la equity final absoluta se mueve de forma apreciable.
+    assert Decimal(big_body["final_equity"]) == Decimal("100000") + big_net
+
+
+@pytest.mark.parametrize("bad_qty", ["0", "-1"])
+def test_backtest_non_positive_qty_returns_422(client, bad_qty):
+    """(f) qty <= 0 -> 422, rechazado por el schema (gt=0) antes de tocar nada."""
+    with mock.patch.object(HistoricalDataService, "get_bars") as get_bars:
+        resp = client.post("/backtest", json=_body(qty=bad_qty))
+
+    assert resp.status_code == 422
+    get_bars.assert_not_called()
 
 
 def test_backtest_invalid_mode_returns_422(client):
