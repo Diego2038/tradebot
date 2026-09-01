@@ -56,14 +56,14 @@ Testing is kept minimal and, where possible, folded into the implementation task
   - Include both routers in `app/main.py`.
   - _Requirements: 1.1, 1.3, 1.4, 2.2, 2.3, 3.1, 3.2, 3.3, 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 9. Critical property-based tests (Hypothesis) and remaining minimum tests
-  - [ ] 9.1 Add Hypothesis property tests for the critical properties (min. 100 iterations each), Alpaca SDK mocked:
+- [x] 9. Critical property-based tests (Hypothesis) and remaining minimum tests
+  - [x] 9.1 Add Hypothesis property tests for the critical properties (min. 100 iterations each), Alpaca SDK mocked:
     - **Property 1: Encryption round-trip never exposes plaintext** (extends `backend/tests/test_security.py`) — **Validates: Requirements 1.1, 1.2**
     - **Property 3: Metadata output never contains the secret** — **Validates: Requirements 1.3, 6.1**
     - **Property 4: 401/403 → InvalidCredentialsError, store unchanged** — **Validates: Requirements 2.2**
     - **Property 5: Timeout/network → distinguishable TransientAlpacaError, store unchanged** — **Validates: Requirements 2.3**
     - **Property 7: Every built client targets the paper endpoint (`paper=True`)** — **Validates: Requirements 4.1, 5.1**
-  - [ ]* 9.2 Add the remaining minimum tests from the design not covered inline
+  - [x]* 9.2 Add the remaining minimum tests from the design not covered inline
     - Validate-before-persist ordering (R2.1); encryption key missing/invalid → `EncryptionError`, store unchanged (R1.6); inspect with none → `exists=False`, no exception (R6.2); no secret in logs/error messages across error paths (R1.4); router wiring smoke test via `TestClient` asserting status codes and `error_code` values.
     - _Requirements: 1.4, 1.6, 2.1, 6.2_
 
